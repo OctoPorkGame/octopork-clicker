@@ -61,20 +61,34 @@
     savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
 
     async function updateStats() {
-      try {
-        const res = await fetch('/.netlify/functions/stats');
-        const { total, players } = await res.json();
-        totalSaved = total || 0;
-        playerCount = players || 0;
-        totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
-        playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
-        if (totalSaved >= TARGET && playerCount >= 10000) {
-          messageDiv.textContent = '$36T uncovered! Time to launch $PORK—stay tuned!';
-        }
-      } catch (err) {
-        console.error('Stats fetch failed:', err);
-      }
+  console.log('Attempting to fetch stats...');
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
+    const res = await fetch('/.netlify/functions/stats', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    console.log('Fetch response status:', res.status, 'OK:', res.ok, 'Headers:', [...res.headers]);
+    if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+    const text = await res.text();
+    console.log('Raw response text:', text);
+    const data = text ? JSON.parse(text) : {};
+    console.log('Parsed data:', data);
+    const { total = 0, players = 0 } = data;
+    totalSaved = total;
+    playerCount = players;
+    totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
+    playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
+    if (totalSaved >= TARGET && playerCount >= 10000) {
+      messageDiv.textContent = '$36T uncovered! Time to launch $PORK—stay tuned!';
     }
+  } catch (err) {
+    console.error('Stats fetch failed:', err.message, 'Response text:', await res?.text?.() || 'No response');
+  }
+}
     updateStats();
     setInterval(updateStats, 5000);
 
