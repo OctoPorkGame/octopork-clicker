@@ -2,167 +2,186 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OctoPork Clicker</title>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; background: #f0f0f0; }
-    #game { position: relative; width: 800px; height: 600px; margin: 20px auto; overflow: hidden; }
-    #octopork { cursor: pointer; width: 300px; position: absolute; left: 250px; top: 150px; }
-    #waste { position: absolute; top: 50px; left: 350px; font-size: 18px; color: #ff4500; transition: opacity 0.5s; }
-    #saved, #total, #players, #message { font-size: 20px; margin: 10px; }
-    canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
-    .confetti { position: absolute; width: 10px; height: 10px; }
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 20px;
+    }
+    #octopork {
+      width: 300px;
+      cursor: pointer;
+    }
+    #total, #players, #message {
+      margin: 10px 0;
+      font-size: 1.2em;
+    }
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+    .waste-item {
+      position: absolute;
+      font-size: 1.5em;
+      color: red;
+      pointer-events: none;
+    }
+    .coin {
+      position: absolute;
+      font-size: 2em;
+      color: gold;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
   <h1>OctoPork Clicker</h1>
-  <div id="game">
-    <img id="octopork" src="octopork-image.png" alt="OctoPork">
-    <div id="waste"></div>
-    <canvas id="coins" width="800" height="600"></canvas>
-  </div>
-  <div id="saved">$PORK Saved: $0</div>
+  <img id="octopork" src="octopork-image.png" alt="OctoPork">
+  <div>$PORK Saved: $<span id="score">0</span></div>
   <div id="total">Total $PORK Saved: $0</div>
   <div id="players">Players Shredding Waste: 0</div>
-  <div id="message">Uncover $36T in waste—then we might launch $PORK to the moon!</div>
+  <div id="message"></div>
+  <canvas id="confetti"></canvas>
 
-  <audio id="cha-ching" src="cha-ching.mp3"></audio>
-  <audio id="shredder" src="shredder.mp3"></audio>
-
+  <script src="https://cdn.jsdelivr.net/npm/konfetti@0.2.0/dist/konfetti.min.js"></script>
   <script>
-    const wasteItems = [
-      { text: "$10M Golden Toilet Throne", amount: 10000000 },
-      { text: "$2M Diamond Stapler Study", amount: 2000000 },
-      { text: "$500K Pork-Filled Briefcase", amount: 500000 },
-      { text: "$1B Kitchen Sink Subsidy", amount: 1000000000 },
-      { text: "$750K Senator Selfie Statues", amount: 750000 },
-      { text: "$25M Pentagon Coffee Fund", amount: 25000000 },
-      { text: "$3.5M Jet Joyride", amount: 3500000 },
-      { text: "$100M Bridge to Nowhere", amount: 100000000 },
-      { text: "$50K Gold Paperclips", amount: 50000 },
-      { text: "$6B Typo Cover-Up", amount: 6000000000 }
-    ];
-
-    let saved = parseInt(localStorage.getItem('porkSaved')) || 0;
-    let playerCount = 0;
-    let totalSaved = 0;
-    const TARGET = 36000000000000; // $36T
-
     const octopork = document.getElementById('octopork');
-    const wasteDiv = document.getElementById('waste');
-    const savedDiv = document.getElementById('saved');
+    const scoreSpan = document.getElementById('score');
     const totalDiv = document.getElementById('total');
     const playersDiv = document.getElementById('players');
     const messageDiv = document.getElementById('message');
-    const canvas = document.getElementById('coins');
-    const ctx = canvas.getContext('2d');
-    const chaChing = document.getElementById('cha-ching');
-    const shredder = document.getElementById('shredder');
+    const canvas = document.getElementById('confetti');
+    const konfetti = new Konfetti({ canvas });
 
-    savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
+    const TARGET = 36_000_000_000_000; // $36T
+    let score = Number(localStorage.getItem('score')) || 0;
+    let totalSaved = 0;
+    let playerCount = 0;
 
-    async function updateStats() {
-  console.log('Attempting to fetch stats...');
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
-    const res = await fetch('/.netlify/functions/stats', {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' },
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    console.log('Fetch response status:', res.status, 'OK:', res.ok, 'Headers:', [...res.headers]);
-    if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
-    const text = await res.text();
-    console.log('Raw response text:', text);
-    const data = text ? JSON.parse(text) : {};
-    console.log('Parsed data:', data);
-    const { total = 0, players = 0 } = data;
-    totalSaved = total;
-    playerCount = players;
-    totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
-    playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
-    if (totalSaved >= TARGET && playerCount >= 10000) {
-      messageDiv.textContent = '$36T uncovered! Time to launch $PORK—stay tuned!';
+    // Persist playerId in localStorage
+    let playerId = localStorage.getItem('playerId');
+    if (!playerId) {
+      playerId = Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('playerId', playerId);
     }
-  } catch (err) {
-    console.error('Stats fetch failed:', err.message, 'Response text:', await res?.text?.() || 'No response');
-  }
-}
-    updateStats();
-    setInterval(updateStats, 5000);
+    console.log('Client playerId:', playerId);
 
-    octopork.onclick = async () => {
-      const item = wasteItems[Math.floor(Math.random() * wasteItems.length)];
-      saved += item.amount;
-      localStorage.setItem('porkSaved', saved);
-      wasteDiv.textContent = item.text;
-      wasteDiv.style.opacity = 1;
-      savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
+    scoreSpan.textContent = score.toLocaleString();
 
-      chaChing.play().catch(() => {});
-      shredder.play().catch(() => {});
+    const wasteItems = [
+      '$6B Typo Cover-Up',
+      '$100M Paperwork Shred',
+      '$25M "Lost" Files',
+      '$1B Misfiled Report'
+    ];
 
-      explodeWaste();
-      dropCoin();
-
-      fetch('/.netlify/functions/click', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: item.amount })
-      }).catch(err => console.error('Click report failed:', err));
+    const sounds = {
+      chaChing: new Audio('cha-ching.mp3'),
+      shredder: new Audio('shredder.mp3')
     };
 
-    function explodeWaste() {
-      const wasteRect = wasteDiv.getBoundingClientRect();
-      const gameRect = document.getElementById('game').getBoundingClientRect();
-      const startX = wasteRect.left - gameRect.left + wasteRect.width / 2;
-      const startY = wasteRect.top - gameRect.top + wasteRect.height / 2;
+    function getRandomAmount() {
+      const amounts = [6_000_000_000, 100_000_000, 25_000_000, 1_000_000_000];
+      return amounts[Math.floor(Math.random() * amounts.length)];
+    }
 
-      for (let i = 0; i < 20; i++) {
-        const confetti = document.createElement('div');
-        confetti.className = 'confetti';
-        confetti.style.background = `hsl(${Math.random() * 360}, 100%, 50%)`;
-        confetti.style.left = `${startX}px`;
-        confetti.style.top = `${startY}px`;
-        document.getElementById('game').appendChild(confetti);
+    function animateWasteItem(amount) {
+      const item = document.createElement('div');
+      item.className = 'waste-item';
+      item.textContent = wasteItems.find(w => w.includes(amount.toLocaleString())) || `$${amount.toLocaleString()} Waste`;
+      item.style.left = `${Math.random() * (window.innerWidth - 100)}px`;
+      item.style.top = `${Math.random() * (window.innerHeight - 100)}px`;
+      document.body.appendChild(item);
 
-        const angle = Math.random() * 2 * Math.PI;
-        const speed = Math.random() * 5 + 2;
-        let vx = Math.cos(angle) * speed;
-        let vy = Math.sin(angle) * speed;
+      setTimeout(() => {
+        item.style.opacity = '0';
+        item.style.transform = 'translateY(-50px)';
+      }, 100);
 
-        const animate = () => {
-          const x = parseFloat(confetti.style.left) + vx;
-          const y = parseFloat(confetti.style.top) + vy;
-          vy += 0.1;
-          confetti.style.left = `${x}px`;
-          confetti.style.top = `${y}px`;
+      setTimeout(() => item.remove(), 1000);
+    }
 
-          if (y < 600) requestAnimationFrame(animate);
-          else {
-            confetti.remove();
-            wasteDiv.style.opacity = 0;
-          }
-        };
-        animate();
+    function animateCoin() {
+      const coin = document.createElement('div');
+      coin.className = 'coin';
+      coin.textContent = '💰';
+      coin.style.left = `${Math.random() * (window.innerWidth - 50)}px`;
+      coin.style.top = `${Math.random() * (window.innerHeight - 50)}px`;
+      document.body.appendChild(coin);
+
+      setTimeout(() => {
+        coin.style.opacity = '0';
+        coin.style.transform = 'translateY(50px)';
+      }, 100);
+
+      setTimeout(() => coin.remove(), 1000);
+    }
+
+    async function reportClick(amount) {
+      try {
+        await fetch('/.netlify/functions/click', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount, playerId })
+        });
+      } catch (err) {
+        console.error('Click report failed:', err);
       }
     }
 
-    function dropCoin() {
-      const coin = { x: Math.random() * 700 + 50, y: 0, vy: 5, opacity: 1 };
-      const animate = () => {
-        ctx.clearRect(0, 0, 800, 600);
-        ctx.font = '20px Arial';
-        ctx.fillStyle = `rgba(255, 215, 0, ${coin.opacity})`;
-        ctx.fillText('$', coin.x, coin.y);
-        coin.y += coin.vy;
-        coin.vy += 0.1;
-        coin.opacity -= 0.02;
-        if (coin.y < 600 && coin.opacity > 0) requestAnimationFrame(animate);
-      };
-      animate();
+    async function updateStats() {
+      console.log('Attempting to fetch stats...');
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch('/.netlify/functions/stats', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        console.log('Fetch response status:', res.status, 'OK:', res.ok, 'Headers:', [...res.headers]);
+        if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+        const text = await res.text();
+        console.log('Raw response text:', text);
+        const data = text ? JSON.parse(text) : {};
+        console.log('Parsed data:', data);
+        const { total = 0, players = 0 } = data;
+        totalSaved = total;
+        playerCount = players;
+        totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
+        playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
+        if (totalSaved >= TARGET && playerCount >= 10000) {
+          messageDiv.textContent = '$36T uncovered! Time to launch $PORK—stay tuned!';
+        }
+      } catch (err) {
+        console.error('Stats fetch failed:', err.message, 'Response text:', await res?.text?.() || 'No response');
+      }
     }
+
+    octopork.addEventListener('click', () => {
+      const amount = getRandomAmount();
+      score += amount;
+      localStorage.setItem('score', score);
+      scoreSpan.textContent = score.toLocaleString();
+
+      konfetti.fire(50, { spread: 90, startVelocity: 30 });
+      animateWasteItem(amount);
+      animateCoin();
+      sounds.chaChing.play();
+      sounds.shredder.play();
+
+      reportClick(amount);
+    });
+
+    setInterval(updateStats, 5000);
+    updateStats();
   </script>
 </body>
 </html>
