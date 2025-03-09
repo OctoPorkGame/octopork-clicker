@@ -81,9 +81,10 @@
       '$1B Misfiled Report'
     ];
 
+    // Safely initialize audio with fallback
     const sounds = {
-      chaChing: new Audio('cha-ching.mp3'),
-      shredder: new Audio('shredder.mp3')
+      chaChing: new Audio('cha-ching.mp3') || new Audio(), // Fallback to empty Audio if file not found
+      shredder: new Audio('shredder.mp3') || new Audio()
     };
 
     function getRandomAmount() {
@@ -125,11 +126,14 @@
 
     async function reportClick(amount) {
       try {
-        await fetch('/.netlify/functions/click', {
+        const response = await fetch('/.netlify/functions/click', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ amount, playerId })
         });
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+        const data = await response.json();
+        console.log('Click report response:', data);
       } catch (err) {
         console.error('Click report failed:', err);
       }
@@ -138,14 +142,10 @@
     async function updateStats() {
       console.log('Attempting to fetch stats...');
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
         const res = await fetch('/.netlify/functions/stats', {
           method: 'GET',
-          headers: { 'Accept': 'application/json' },
-          signal: controller.signal
+          headers: { 'Accept': 'application/json' }
         });
-        clearTimeout(timeoutId);
         console.log('Fetch response status:', res.status, 'OK:', res.ok, 'Headers:', [...res.headers]);
         if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
         const text = await res.text();
@@ -165,7 +165,7 @@
       }
     }
 
-    octopork.addEventListener('click', () => {
+    octopork.addEventListener('click', async () => {
       const amount = getRandomAmount();
       score += amount;
       localStorage.setItem('score', score);
@@ -174,10 +174,10 @@
       konfetti.fire(50, { spread: 90, startVelocity: 30 });
       animateWasteItem(amount);
       animateCoin();
-      sounds.chaChing.play();
-      sounds.shredder.play();
+      sounds.chaChing.play().catch(err => console.warn('Audio play failed:', err)); // Handle audio errors gracefully
+      sounds.shredder.play().catch(err => console.warn('Audio play failed:', err));
 
-      reportClick(amount);
+      await reportClick(amount); // Await the click report
     });
 
     setInterval(updateStats, 5000);
