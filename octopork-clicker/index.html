@@ -57,20 +57,12 @@
     const playersDiv = document.getElementById('players');
     const messageDiv = document.getElementById('message');
     const canvas = document.getElementById('confetti');
-    const konfetti = canvas ? new Konfetti({ canvas }) : { fire: () => console.log('Konfetti disabled') };
+    const konfetti = new Konfetti({ canvas });
 
     const TARGET = 36_000_000_000_000; // $36T
     let score = Number(localStorage.getItem('score')) || 0;
     let totalSaved = 0;
     let playerCount = 0;
-
-    // Persist playerId in localStorage
-    let playerId = localStorage.getItem('playerId');
-    if (!playerId) {
-      playerId = Math.random().toString(36).substring(2, 9);
-      localStorage.setItem('playerId', playerId);
-    }
-    console.log('Client playerId:', playerId);
 
     scoreSpan.textContent = score.toLocaleString();
 
@@ -81,15 +73,10 @@
       '$1B Misfiled Report'
     ];
 
-    // Optional audio (non-critical)
     const sounds = {
       chaChing: new Audio('cha-ching.mp3'),
       shredder: new Audio('shredder.mp3')
     };
-    Object.values(sounds).forEach(sound => {
-      sound.onerror = () => console.warn('Audio file failed to load:', sound.src);
-      sound.onplay = () => {}; // Prevent null play errors
-    });
 
     function getRandomAmount() {
       const amounts = [6_000_000_000, 100_000_000, 25_000_000, 1_000_000_000];
@@ -97,45 +84,44 @@
     }
 
     function animateWasteItem(amount) {
-      if (!document.body) return;
       const item = document.createElement('div');
       item.className = 'waste-item';
       item.textContent = wasteItems.find(w => w.includes(amount.toLocaleString())) || `$${amount.toLocaleString()} Waste`;
       item.style.left = `${Math.random() * (window.innerWidth - 100)}px`;
       item.style.top = `${Math.random() * (window.innerHeight - 100)}px`;
       document.body.appendChild(item);
+
       setTimeout(() => {
         item.style.opacity = '0';
         item.style.transform = 'translateY(-50px)';
       }, 100);
+
       setTimeout(() => item.remove(), 1000);
     }
 
     function animateCoin() {
-      if (!document.body) return;
       const coin = document.createElement('div');
       coin.className = 'coin';
       coin.textContent = '💰';
       coin.style.left = `${Math.random() * (window.innerWidth - 50)}px`;
       coin.style.top = `${Math.random() * (window.innerHeight - 50)}px`;
       document.body.appendChild(coin);
+
       setTimeout(() => {
         coin.style.opacity = '0';
         coin.style.transform = 'translateY(50px)';
       }, 100);
+
       setTimeout(() => coin.remove(), 1000);
     }
 
     async function reportClick(amount) {
       try {
-        const response = await fetch('/.netlify/functions/click', {
+        await fetch('/.netlify/functions/click', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount, playerId })
+          body: JSON.stringify({ amount })
         });
-        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-        const data = await response.json();
-        console.log('Click report response:', data);
       } catch (err) {
         console.error('Click report failed:', err);
       }
@@ -152,10 +138,11 @@
         if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
         const text = await res.text();
         console.log('Raw response text:', text);
-        const data = text ? JSON.parse(text) : { total: 0, players: 0 };
+        const data = text ? JSON.parse(text) : {};
         console.log('Parsed data:', data);
-        totalSaved = data.total || 0;
-        playerCount = data.players || 0;
+        const { total = 0, players = 0 } = data;
+        totalSaved = total;
+        playerCount = players;
         totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
         playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
         if (totalSaved >= TARGET && playerCount >= 10000) {
@@ -166,28 +153,22 @@
       }
     }
 
-    octopork.addEventListener('click', async () => {
-      try {
-        const amount = getRandomAmount();
-        score += amount;
-        localStorage.setItem('score', score);
-        scoreSpan.textContent = score.toLocaleString();
-        konfetti.fire(50, { spread: 90, startVelocity: 30 });
-        animateWasteItem(amount);
-        animateCoin();
-        sounds.chaChing.play().catch(err => console.warn('ChaChing audio failed:', err));
-        sounds.shredder.play().catch(err => console.warn('Shredder audio failed:', err));
-        await reportClick(amount);
-      } catch (err) {
-        console.error('Click event failed:', err);
-      }
+    octopork.addEventListener('click', () => {
+      const amount = getRandomAmount();
+      score += amount;
+      localStorage.setItem('score', score);
+      scoreSpan.textContent = score.toLocaleString();
+
+      konfetti.fire(50, { spread: 90, startVelocity: 30 });
+      animateWasteItem(amount);
+      animateCoin();
+      sounds.chaChing.play();
+      sounds.shredder.play();
+
+      reportClick(amount);
     });
 
     setInterval(updateStats, 5000);
-    updateStats();
-  </script>
-</body>
-</html>
     updateStats();
   </script>
 </body>
