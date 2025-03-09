@@ -16,8 +16,10 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 exports.handler = async (event, context) => {
+  console.log('Click function triggered with event:', event);
   try {
     const body = JSON.parse(event.body || '{}');
+    console.log('Parsed body:', body);
     const amount = Number(body.amount) || 0;
     const playerId = body.playerId || `unknown-${Math.random().toString(36).substring(2, 9)}`;
     console.log('Received playerId:', playerId);
