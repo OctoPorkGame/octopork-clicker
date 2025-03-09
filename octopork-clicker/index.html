@@ -57,7 +57,7 @@
     const playersDiv = document.getElementById('players');
     const messageDiv = document.getElementById('message');
     const canvas = document.getElementById('confetti');
-    const konfetti = canvas ? new Konfetti({ canvas }) : { fire: () => {} }; // Fallback if canvas fails
+    const konfetti = canvas ? new Konfetti({ canvas }) : { fire: () => console.log('Konfetti disabled') };
 
     const TARGET = 36_000_000_000_000; // $36T
     let score = Number(localStorage.getItem('score')) || 0;
@@ -81,13 +81,14 @@
       '$1B Misfiled Report'
     ];
 
-    // Safely initialize audio
+    // Optional audio (non-critical)
     const sounds = {
       chaChing: new Audio('cha-ching.mp3'),
       shredder: new Audio('shredder.mp3')
     };
     Object.values(sounds).forEach(sound => {
       sound.onerror = () => console.warn('Audio file failed to load:', sound.src);
+      sound.onplay = () => {}; // Prevent null play errors
     });
 
     function getRandomAmount() {
@@ -103,12 +104,10 @@
       item.style.left = `${Math.random() * (window.innerWidth - 100)}px`;
       item.style.top = `${Math.random() * (window.innerHeight - 100)}px`;
       document.body.appendChild(item);
-
       setTimeout(() => {
         item.style.opacity = '0';
         item.style.transform = 'translateY(-50px)';
       }, 100);
-
       setTimeout(() => item.remove(), 1000);
     }
 
@@ -120,12 +119,10 @@
       coin.style.left = `${Math.random() * (window.innerWidth - 50)}px`;
       coin.style.top = `${Math.random() * (window.innerHeight - 50)}px`;
       document.body.appendChild(coin);
-
       setTimeout(() => {
         coin.style.opacity = '0';
         coin.style.transform = 'translateY(50px)';
       }, 100);
-
       setTimeout(() => coin.remove(), 1000);
     }
 
@@ -175,13 +172,11 @@
         score += amount;
         localStorage.setItem('score', score);
         scoreSpan.textContent = score.toLocaleString();
-
         konfetti.fire(50, { spread: 90, startVelocity: 30 });
         animateWasteItem(amount);
         animateCoin();
         sounds.chaChing.play().catch(err => console.warn('ChaChing audio failed:', err));
         sounds.shredder.play().catch(err => console.warn('Shredder audio failed:', err));
-
         await reportClick(amount);
       } catch (err) {
         console.error('Click event failed:', err);
@@ -189,6 +184,10 @@
     });
 
     setInterval(updateStats, 5000);
+    updateStats();
+  </script>
+</body>
+</html>
     updateStats();
   </script>
 </body>
