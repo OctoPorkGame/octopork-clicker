@@ -16,25 +16,14 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 exports.handler = async (event, context) => {
-  console.log('Click function triggered with event:', event);
   try {
     const body = JSON.parse(event.body || '{}');
-    console.log('Parsed body:', body);
     const amount = Number(body.amount) || 0;
-    const playerId = body.playerId || `unknown-${Math.random().toString(36).substring(2, 9)}`;
-    console.log('Received playerId:', playerId);
-
     if (isNaN(amount) || amount <= 0) {
-      return {
-        statusCode: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        },
-        body: JSON.stringify({ error: 'Invalid amount' })
-      };
+      return { statusCode: 400, body: JSON.stringify({ error: 'Invalid amount' }) };
     }
 
+    const playerId = event.headers['client-ip'] || 'unknown';
     const clickData = {
       amount,
       playerId,
@@ -46,24 +35,12 @@ exports.handler = async (event, context) => {
 
     return {
       statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
       body: JSON.stringify({ success: true })
     };
   } catch (error) {
-    console.error('Click function failed:', error);
     return {
       statusCode: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
       body: JSON.stringify({ error: error.message })
-    };
-  }
-};: JSON.stringify({ error: error.message })
     };
   }
 };
