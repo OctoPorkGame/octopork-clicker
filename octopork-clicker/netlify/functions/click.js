@@ -63,4 +63,7 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({ error: error.message })
     };
   }
+};: JSON.stringify({ error: error.message })
+    };
+  }
 };
