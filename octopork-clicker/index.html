@@ -103,7 +103,7 @@
 
   <audio id="cha-ching" src="cha-ching.mp3"></audio>
   <audio id="shredder" src="shredder.mp3"></audio>
-  <audio id="power-up-sound" src="power-up.mp3"></audio>
+  <!-- <audio id="power-up-sound" src="power-up.mp3"></audio> -->
 
   <script>
     const wasteItems = [
@@ -144,7 +144,7 @@
     const ctx = canvas.getContext('2d');
     const chaChing = document.getElementById('cha-ching');
     const shredder = document.getElementById('shredder');
-    const powerUpSound = document.getElementById('power-up-sound');
+    // const powerUpSound = document.getElementById('power-up-sound');
     const powerUpButton = document.getElementById('power-up');
     const joinTeamButton = document.getElementById('join-team');
 
@@ -263,7 +263,7 @@
       if (powerUpCooldown || currentLevel < 2) return;
       powerUpActive = true;
       powerUpButton.disabled = true;
-      powerUpSound.play().catch(() => {});
+      // powerUpSound.play().catch(() => {});
       messageDiv.textContent = 'Double Pork Active! (10s)';
       setTimeout(() => {
         powerUpActive = false;
@@ -284,12 +284,11 @@
     }
 
     async function joinTeam() {
-      if (teamId || currentLevel < 5) return; // Restrict to Level 5+
+      if (teamId || currentLevel < 5) return;
       teamId = crypto.randomUUID();
       joinTeamButton.disabled = true;
       joinTeamButton.textContent = `In Team ${teamId.slice(0, 8)}`;
       console.log('Joined team:', teamId);
-      // Sync with Firebase (to be implemented in click.js)
     }
 
     async function updateStats() {
@@ -299,11 +298,14 @@
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         const res = await fetch('/.netlify/functions/stats', {
-          method: 'GET', headers: { 'Accept': 'application/json' }, signal: controller.signal
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal
         });
         clearTimeout(timeoutId);
         if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
         const data = await res.json();
+        console.log('Stats data received:', data); // Debug log
         totalSaved = data.total || 0;
         lastPlayerCount = playerCount;
         playerCount = data.players || 0;
@@ -320,27 +322,67 @@
       const leaderboardLoading = document.getElementById('leaderboard-loading');
       leaderboardLoading.style.display = 'block';
       if (window.location.protocol === 'file:') {
+        console.log('Running locally - skipping leaderboard fetch');
         leaderboardLoading.style.display = 'none';
         return;
       }
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
         const response = await fetch('/.netlify/functions/leaderboard', {
-          method: 'GET', headers: { 'Accept': 'application/json' }, signal: new AbortController().signal
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const data = await response.json();
+        console.log('Leaderboard data received:', data); // Debug log
         const leaderboardBody = document.getElementById('leaderboard-body');
-        leaderboardBody.innerHTML = '';
+        leaderboardBody.innerHTML = ''; // Clear existing rows
+        if (!data.leaderboard || !Array.isArray(data.leaderboard)) {
+          console.error('Leaderboard data is not an array:', data);
+          return;
+        }
         data.leaderboard.forEach((entry, index) => {
+          console.log('Rendering leaderboard entry:', entry); // Debug log
           const row = document.createElement('tr');
           if (entry.playerId === playerId) row.style.backgroundColor = '#d4edda';
           row.innerHTML = `<td>${index + 1}</td><td>${entry.name || 'Anonymous'}</td><td>$${entry.total.toLocaleString()}</td>`;
           leaderboardBody.appendChild(row);
         });
+        if (data.leaderboard.length === 0) {
+          console.log('Leaderboard is empty');
+          leaderboardBody.innerHTML = '<tr><td colspan="3">No players yet!</td></tr>';
+        }
       } catch (error) {
         console.error('Leaderboard fetch failed:', error.message);
       } finally {
         leaderboardLoading.style.display = 'none';
+      }
+    }
+
+    async function syncLevelWithServer() {
+      try {
+        const response = await fetch('/.netlify/functions/get-player-total', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId })
+        });
+        const data = await response.json();
+        if (data.total) {
+          saved = data.total;
+          localStorage.setItem('porkSaved', saved);
+          currentLevel = 1;
+          for (let i = 0; i < levelGoals.length; i++) {
+            if (saved >= levelGoals[i]) currentLevel = i + 2;
+            else break;
+          }
+          localStorage.setItem('currentLevel', currentLevel);
+          updateLevelDisplay();
+        }
+      } catch (error) {
+        console.error('Failed to sync level with server:', error.message);
       }
     }
 
@@ -351,6 +393,7 @@
 
     async function initializeGame() {
       await checkPlayerName();
+      await syncLevelWithServer();
       await updateGameData();
     }
 
