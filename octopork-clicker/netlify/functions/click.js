@@ -44,13 +44,14 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { amount, playerId } = body;
-    console.log('Extracted amount:', amount, 'playerId:', playerId);
+    const { amount, playerId, multiplier = 1 } = body; // Added multiplier for power-ups
+    console.log('Extracted amount:', amount, 'multiplier:', multiplier, 'playerId:', playerId);
     if (!amount || amount <= 0) throw new Error('Amount is required and must be positive');
     if (!playerId || typeof playerId !== 'string' || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(playerId)) {
       throw new Error('Valid playerId (UUID) is required');
     }
 
+    const effectiveAmount = amount * multiplier;
     const clicksRef = ref(db, 'clicks');
     const statsRef = ref(db, 'stats/global');
     const playersRef = ref(db, 'players');
@@ -58,6 +59,8 @@ exports.handler = async (event, context) => {
 
     const clickResult = await push(clicksRef, {
       amount,
+      multiplier,
+      effectiveAmount,
       playerId,
       timestamp: new Date().toISOString(),
     }).catch((err) => {
@@ -66,7 +69,7 @@ exports.handler = async (event, context) => {
     console.log('Click recorded with ID:', clickResult.key, 'for playerId:', playerId);
 
     await update(statsRef, {
-      total: increment(amount),
+      total: increment(effectiveAmount),
       lastUpdated: new Date().toISOString(),
     }).catch((err) => {
       throw new Error(`Failed to update /stats/global/total: ${err.message}`);
@@ -75,7 +78,7 @@ exports.handler = async (event, context) => {
 
     try {
       await update(playerTotalsRef, {
-        total: increment(amount),
+        total: increment(effectiveAmount),
         lastUpdated: new Date().toISOString(),
       });
       console.log('Updated player total for:', playerId);
