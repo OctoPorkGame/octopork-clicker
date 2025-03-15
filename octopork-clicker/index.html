@@ -43,8 +43,8 @@
     ];
 
     let saved = parseInt(localStorage.getItem('porkSaved')) || 0;
-    let playerCount = 0;
-    let totalSaved = 0;
+    let playerCount = 1; // Initialize with 1 for the current session
+    let totalSaved = 0;  // Initialize but don't reset in updateStats
     const TARGET = 36000000000000; // $36T
 
     const octopork = document.getElementById('octopork');
@@ -59,36 +59,52 @@
     const shredder = document.getElementById('shredder');
 
     savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
-
-    async function updateStats() {
-  console.log('Attempting to fetch stats...');
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
-    const res = await fetch('/.netlify/functions/stats', {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' },
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    console.log('Fetch response status:', res.status, 'OK:', res.ok, 'Headers:', [...res.headers]);
-    if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
-    const text = await res.text();
-    console.log('Raw response text:', text);
-    const data = text ? JSON.parse(text) : {};
-    console.log('Parsed data:', data);
-    const { total = 0, players = 0 } = data;
-    totalSaved = total;
-    playerCount = players;
     totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
     playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
-    if (totalSaved >= TARGET && playerCount >= 10000) {
-      messageDiv.textContent = '$36T uncovered! Time to launch $PORK—stay tuned!';
+
+    // Generate or retrieve playerId
+    let playerId = localStorage.getItem('playerId');
+    if (!playerId) {
+      playerId = crypto.randomUUID();
+      localStorage.setItem('playerId', playerId);
     }
-  } catch (err) {
-    console.error('Stats fetch failed:', err.message, 'Response text:', await res?.text?.() || 'No response');
-  }
-}
+    console.log('Using playerId:', playerId);
+
+    async function updateStats() {
+      console.log('Attempting to fetch stats...');
+      // Check if running locally (file:// protocol)
+      if (window.location.protocol === 'file:') {
+        console.log('Running locally - skipping fetch and mocking data');
+        // Don't reset totalSaved or playerCount - preserve their values
+      } else {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
+          const res = await fetch('/.netlify/functions/stats', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          console.log('Fetch response status:', res.status, 'OK:', res.ok, 'Headers:', [...res.headers]);
+          if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+          const text = await res.text();
+          console.log('Raw response text:', text);
+          const data = text ? JSON.parse(text) : {};
+          console.log('Parsed data:', data);
+          const { total = 0, players = 0 } = data;
+          totalSaved = total;
+          playerCount = players;
+        } catch (err) {
+          console.error('Stats fetch failed:', err.message);
+        }
+      }
+      totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
+      playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
+      if (totalSaved >= TARGET && playerCount >= 10000) {
+        messageDiv.textContent = '$36T uncovered! Time to launch $PORK—stay tuned!';
+      }
+    }
     updateStats();
     setInterval(updateStats, 5000);
 
@@ -106,11 +122,23 @@
       explodeWaste();
       dropCoin();
 
+      // Uncomment for deployment
       fetch('/.netlify/functions/click', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: item.amount })
+        body: JSON.stringify({ amount: item.amount, playerId })
       }).catch(err => console.error('Click report failed:', err));
+
+      // Mock local updates
+      if (window.location.protocol === 'file:') {
+        console.log('Running locally - mocking updateStats');
+        totalSaved += item.amount; // Accumulate total locally
+        playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
+        totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
+        savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`; // Already updated
+      } else {
+        await updateStats(); // Call when deployed
+      }
     };
 
     function explodeWaste() {
