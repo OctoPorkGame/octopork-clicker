@@ -58,13 +58,21 @@ exports.handler = async (event, context) => {
     console.log('Click recorded with ID:', clickResult.key);
 
     await update(statsRef, { total: increment(effectiveAmount), lastUpdated: new Date().toISOString() });
-    await update(playerTotalsRef, { total: increment(effectiveAmount), lastUpdated: new Date().toISOString() });
+    await update(playerTotalsRef, {
+      total: increment(effectiveAmount),
+      clickCount: increment(1), // Track individual clicks
+      lastUpdated: new Date().toISOString(),
+    });
     await update(playersRef, { lastSeen: new Date().toISOString() });
 
     // Check if this is a new player and ensure their total exists
     const playerTotalSnap = await get(playerTotalsRef);
     if (!playerTotalSnap.exists()) {
-      await update(playerTotalsRef, { total: effectiveAmount, lastUpdated: new Date().toISOString() });
+      await update(playerTotalsRef, {
+        total: effectiveAmount,
+        clickCount: 1, // Initialize click count
+        lastUpdated: new Date().toISOString(),
+      });
     }
 
     // Update player count based on unique players in playerTotals
