@@ -1,7 +1,6 @@
 const { initializeApp } = require('firebase/app');
 const { getDatabase, ref, push, update, increment, get } = require('firebase/database');
 
-// Firebase configuration using environment variables
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -13,10 +12,8 @@ const firebaseConfig = {
   measurementId: process.env.FIREBASE_MEASUREMENT_ID,
 };
 
-// Debug log to verify environment variables
 console.log('Firebase Config:', firebaseConfig);
 
-// Validate required fields
 if (!firebaseConfig.apiKey || !firebaseConfig.databaseURL || !firebaseConfig.projectId) {
   throw new Error('Missing required Firebase environment variables: apiKey, databaseURL, or projectId');
 }
@@ -57,6 +54,7 @@ exports.handler = async (event, context) => {
     const clicksRef = ref(db, 'clicks');
     const statsRef = ref(db, 'stats/global');
     const playersRef = ref(db, 'players');
+    const playerTotalsRef = ref(db, `playerTotals/${playerId}`);
 
     const clickResult = await push(clicksRef, {
       amount,
@@ -74,6 +72,14 @@ exports.handler = async (event, context) => {
       throw new Error(`Failed to update /stats/global/total: ${err.message}`);
     });
     console.log('Updated total in stats/global');
+
+    await update(playerTotalsRef, {
+      total: increment(amount),
+      lastUpdated: new Date().toISOString(),
+    }).catch((err) => {
+      throw new Error(`Failed to update /playerTotals/${playerId}: ${err.message}`);
+    });
+    console.log('Updated player total for:', playerId);
 
     const playerSnap = await get(ref(db, `players/${playerId}`)).catch((err) => {
       throw new Error(`Failed to read /players/${playerId}: ${err.message}`);
