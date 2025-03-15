@@ -39,10 +39,10 @@ exports.handler = async (event, context) => {
     const playerTotals = {};
 
     for (const [clickId, clickData] of Object.entries(clicks)) {
-      const { playerId, amount } = clickData;
-      if (!playerId || !amount) continue;
+      const { playerId, effectiveAmount } = clickData;
+      if (!playerId || !effectiveAmount) continue;
       if (!playerTotals[playerId]) playerTotals[playerId] = 0;
-      playerTotals[playerId] += amount;
+      playerTotals[playerId] += effectiveAmount;
     }
 
     for (const [playerId, total] of Object.entries(playerTotals)) {
