@@ -36,7 +36,11 @@
     #power-up:disabled, #change-name:disabled { background: #cccccc; cursor: not-allowed; }
     #power-up:hover:not(:disabled), #change-name:hover:not(:disabled) { background: #0056b3; }
     #badge { color: #FFD700; font-weight: bold; }
-    .new-player { color: green; font-weight: bold; }
+    .new-player { color: green; font-weight: bold; animation: flash 1s ease-in-out 2; }
+    @keyframes flash {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
   </style>
 </head>
 <body>
@@ -261,7 +265,6 @@
         playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
         if (playerCount > lastPlayerCount) {
           playersDiv.classList.add('new-player');
-          setTimeout(() => playersDiv.classList.remove('new-player'), 2000);
         }
         if (totalSaved >= TARGET && playerCount >= 10000) {
           messageDiv.textContent = '$36T uncovered! Time to launch $PORK—stay tuned!';
