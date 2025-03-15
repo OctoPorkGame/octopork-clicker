@@ -18,14 +18,22 @@ exports.handler = async (event, context) => {
   };
 
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method Not Allowed' }),
+    };
   }
 
   let body;
   try {
     body = event.body ? JSON.parse(event.body) : {};
   } catch (parseError) {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Invalid JSON body' }),
+    };
   }
 
   try {
@@ -45,6 +53,10 @@ exports.handler = async (event, context) => {
     };
   } catch (error) {
     console.error('Get player total error:', error.message);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: error.message }),
+    };
   }
 };
