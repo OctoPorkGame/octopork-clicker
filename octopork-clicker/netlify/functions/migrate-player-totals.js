@@ -25,7 +25,6 @@ exports.handler = async (event, context) => {
   };
 
   try {
-    // Fetch all clicks
     const clicksRef = ref(db, 'clicks');
     const clicksSnapshot = await get(clicksRef);
     if (!clicksSnapshot.exists()) {
@@ -39,17 +38,13 @@ exports.handler = async (event, context) => {
     const clicks = clicksSnapshot.val();
     const playerTotals = {};
 
-    // Aggregate totals by playerId
     for (const [clickId, clickData] of Object.entries(clicks)) {
       const { playerId, amount } = clickData;
       if (!playerId || !amount) continue;
-      if (!playerTotals[playerId]) {
-        playerTotals[playerId] = 0;
-      }
+      if (!playerTotals[playerId]) playerTotals[playerId] = 0;
       playerTotals[playerId] += amount;
     }
 
-    // Write totals to /playerTotals
     for (const [playerId, total] of Object.entries(playerTotals)) {
       const playerTotalsRef = ref(db, `playerTotals/${playerId}`);
       await update(playerTotalsRef, {
