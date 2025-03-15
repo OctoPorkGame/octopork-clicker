@@ -18,7 +18,7 @@ try {
 }
 
 exports.handler = async (event, context) => {
-  console.log('Click function triggered with body:', event.body);
+  console.log('Click function triggered with raw body:', event.body);
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*', // Allow all origins for debugging
@@ -26,12 +26,25 @@ exports.handler = async (event, context) => {
     'Access-Control-Allow-Headers': 'Content-Type'
   };
 
+  let body;
   try {
-    const { amount, playerId } = JSON.parse(event.body || '{}');
-    console.log('Received body:', { amount, playerId });
+    body = event.body ? JSON.parse(event.body) : {};
+    console.log('Parsed body:', body);
+  } catch (parseError) {
+    console.error('Failed to parse body:', parseError.message);
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Invalid JSON body' })
+    };
+  }
+
+  try {
+    const { amount, playerId } = body;
+    console.log('Extracted amount:', amount, 'playerId:', playerId);
     if (!amount || amount <= 0) throw new Error('Amount is required and must be positive');
-    if (!playerId || typeof playerId !== 'string' || playerId === 'unknown') {
-      throw new Error('Valid playerId is required');
+    if (!playerId || typeof playerId !== 'string' || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(playerId)) {
+      throw new Error('Valid playerId (UUID) is required');
     }
 
     const clicksRef = ref(db, 'clicks');
