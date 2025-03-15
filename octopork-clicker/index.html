@@ -11,14 +11,12 @@
     #saved, #total, #players, #message, #badge { font-size: 20px; margin: 10px; }
     canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
     .confetti { position: absolute; width: 10px; height: 10px; }
-    /* Leaderboard styling */
     #leaderboard-section { margin-top: 20px; width: 800px; margin-left: auto; margin-right: auto; }
     #leaderboard-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     #leaderboard-table th, #leaderboard-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     #leaderboard-table th { background-color: #f2f2f2; }
     #leaderboard-table tr:nth-child(even) { background-color: #f9f9f9; }
     #leaderboard-table tr:hover { background-color: #e6e6e6; }
-    /* Name prompt styling */
     #name-prompt { 
       position: fixed; 
       top: 50%; 
@@ -34,12 +32,11 @@
     #name-prompt input { padding: 5px; margin: 10px; font-size: 16px; }
     #name-prompt button { padding: 5px 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; }
     #name-prompt button:hover { background: #45a049; }
-    /* Power-up and change name buttons */
     #power-up, #change-name { padding: 5px 10px; background: #007BFF; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
     #power-up:disabled, #change-name:disabled { background: #cccccc; cursor: not-allowed; }
     #power-up:hover:not(:disabled), #change-name:hover:not(:disabled) { background: #0056b3; }
-    /* Badge styling */
     #badge { color: #FFD700; font-weight: bold; }
+    .new-player { color: green; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -55,11 +52,9 @@
   <div id="message">Uncover $36T in waste—then we might launch $PORK to the moon!</div>
   <div id="badge"></div>
 
-  <!-- Power-up and Change Name Buttons -->
   <button id="power-up" disabled>Double Pork (Cooldown: 60s)</button>
   <button id="change-name" onclick="changePlayerName()">Change Name</button>
 
-  <!-- Leaderboard Section -->
   <div id="leaderboard-section">
     <h2>Leaderboard - Top 10 Shredders</h2>
     <div id="leaderboard-loading" style="display: none;">Loading...</div>
@@ -75,7 +70,6 @@
     </table>
   </div>
 
-  <!-- Name Prompt Modal -->
   <div id="name-prompt" style="display: none;">
     <h3>Welcome to OctoPork Clicker!</h3>
     <p>Please enter your player name:</p>
@@ -86,7 +80,7 @@
 
   <audio id="cha-ching" src="cha-ching.mp3"></audio>
   <audio id="shredder" src="shredder.mp3"></audio>
-  <audio id="power-up-sound" src="power-up.mp3"></audio> <!-- Add this sound file if available -->
+  <audio id="power-up-sound" src="power-up.mp3"></audio>
 
   <script>
     const wasteItems = [
@@ -103,14 +97,14 @@
     ];
 
     let saved = parseInt(localStorage.getItem('porkSaved')) || 0;
-    let playerCount = 1;
+    let playerCount = 0;
+    let lastPlayerCount = 0;
     let totalSaved = 0;
-    const TARGET = 36000000000000; // $36T
+    const TARGET = 36000000000000;
     let powerUpActive = false;
-    let powerUpTimeout = null;
     let powerUpCooldown = false;
-    const POWER_UP_DURATION = 10000; // 10 seconds
-    const COOLDOWN_DURATION = 60000; // 60 seconds
+    const POWER_UP_DURATION = 10000;
+    const COOLDOWN_DURATION = 60000;
 
     const octopork = document.getElementById('octopork');
     const wasteDiv = document.getElementById('waste');
@@ -131,7 +125,6 @@
     playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
     updateBadge();
 
-    // Generate or retrieve playerId
     let playerId = localStorage.getItem('playerId');
     if (!playerId || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(playerId)) {
       playerId = crypto.randomUUID();
@@ -141,7 +134,6 @@
       console.log('Using existing playerId:', playerId);
     }
 
-    // Check and prompt for player name
     let playerName = localStorage.getItem('playerName');
     async function checkPlayerName() {
       if (playerName) {
@@ -231,40 +223,51 @@
         messageDiv.textContent = 'Uncover $36T in waste—then we might launch $PORK to the moon!';
       }, POWER_UP_DURATION);
       powerUpCooldown = true;
-      setTimeout(() => {
-        powerUpCooldown = false;
-        powerUpButton.disabled = false;
-        powerUpButton.textContent = 'Double Pork (Cooldown: 60s)';
-      }, COOLDOWN_DURATION);
+      let cooldown = COOLDOWN_DURATION / 1000;
+      const countdown = setInterval(() => {
+        cooldown--;
+        powerUpButton.textContent = `Double Pork (Cooldown: ${cooldown}s)`;
+        if (cooldown <= 0) {
+          clearInterval(countdown);
+          powerUpCooldown = false;
+          powerUpButton.disabled = false;
+          powerUpButton.textContent = 'Double Pork (Cooldown: 60s)';
+        }
+      }, 1000);
     }
 
     async function updateStats() {
       console.log('Attempting to fetch stats...');
       if (window.location.protocol === 'file:') {
         console.log('Running locally - skipping fetch and mocking data');
-      } else {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
-          const res = await fetch('/.netlify/functions/stats', {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' },
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-          if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
-          const text = await res.text();
-          const data = text ? JSON.parse(text) : { total: 0, players: 0 };
-          totalSaved = data.total || 0;
-          playerCount = data.players || 0;
-        } catch (err) {
-          console.error('Stats fetch failed:', err.message);
-        }
+        return;
       }
-      totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
-      playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
-      if (totalSaved >= TARGET && playerCount >= 10000) {
-        messageDiv.textContent = '$36T uncovered! Time to launch $PORK—stay tuned!';
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch('/.netlify/functions/stats', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : { total: 0, players: 0 };
+        totalSaved = data.total || 0;
+        lastPlayerCount = playerCount;
+        playerCount = data.players || 0;
+        totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
+        playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
+        if (playerCount > lastPlayerCount) {
+          playersDiv.classList.add('new-player');
+          setTimeout(() => playersDiv.classList.remove('new-player'), 2000);
+        }
+        if (totalSaved >= TARGET && playerCount >= 10000) {
+          messageDiv.textContent = '$36T uncovered! Time to launch $PORK—stay tuned!';
+        }
+      } catch (err) {
+        console.error('Stats fetch failed:', err.message);
       }
     }
 
@@ -321,7 +324,11 @@
     octopork.onclick = async () => {
       const item = wasteItems[Math.floor(Math.random() * wasteItems.length)];
       let amount = item.amount;
-      if (powerUpActive && Math.random() < 0.9) amount *= 2; // 90% chance to double during power-up
+      let multiplier = 1;
+      if (powerUpActive && Math.random() < 0.9) {
+        multiplier = 2;
+        amount *= multiplier;
+      }
       saved += amount;
       localStorage.setItem('porkSaved', saved);
       wasteDiv.textContent = item.text;
@@ -335,11 +342,11 @@
       explodeWaste();
       dropCoin();
 
-      console.log('Sending click with amount:', amount, 'playerId:', playerId);
+      console.log('Sending click with amount:', amount, 'multiplier:', multiplier, 'playerId:', playerId);
       fetch('/.netlify/functions/click', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, playerId })
+        body: JSON.stringify({ amount: item.amount, multiplier, playerId })
       })
         .then(res => {
           console.log('Click fetch response status:', res.status);
