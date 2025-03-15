@@ -1,4 +1,5 @@
- "name": "octopork-clicker",
+ {
+  "name": "octopork-clicker",
   "version": "1.0.0",
   "description": "OctoPork Clicker Game",
   "dependencies": {
