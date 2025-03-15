@@ -72,7 +72,7 @@
   <div id="progress-bar">
     <div id="progress"></div>
   </div>
-  <div id="level-display">Level: 1 (0/1,000 clicks)</div>
+  <div id="level-display">Level: 1 (0/0 clicks)</div>
 
   <button id="power-up" disabled>Double Pork (Cooldown: 60s)</button>
   <button id="change-name" onclick="changePlayerName()">Change Name</button>
@@ -127,6 +127,7 @@
     let currentLevel = parseInt(localStorage.getItem('currentLevel')) || 1;
     let xp = parseInt(localStorage.getItem('xp')) || 0;
     let teamId = null;
+    let clickCount = parseInt(localStorage.getItem('clickCount')) || 0; // Add clickCount variable
     const levelGoals = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000, 2000000];
     const TARGET = 36000000000000;
     let powerUpActive = false;
@@ -229,7 +230,7 @@
 
     function updateLevelDisplay() {
       const goal = levelGoals[currentLevel - 1];
-      document.getElementById('level-display').textContent = `Level: ${currentLevel} (${saved}/${goal} clicks)`;
+      document.getElementById('level-display').textContent = `Level: ${currentLevel} (${saved}/${clickCount} clicks)`;
       const progress = (saved / goal) * 100;
       document.getElementById('progress').style.width = `${Math.min(progress, 100)}%`;
       if (saved >= goal && currentLevel < levelGoals.length) levelUp();
@@ -370,9 +371,11 @@
           body: JSON.stringify({ playerId })
         });
         const data = await response.json();
-        if (data.total) {
+        if (data.total !== undefined) {
           saved = data.total;
+          clickCount = data.clickCount || 0; // Fetch clickCount
           localStorage.setItem('porkSaved', saved);
+          localStorage.setItem('clickCount', clickCount); // Store clickCount
           currentLevel = 1;
           for (let i = 0; i < levelGoals.length; i++) {
             if (saved >= levelGoals[i]) currentLevel = i + 2;
@@ -410,7 +413,9 @@
       if (powerUpActive && Math.random() < 0.9) multiplier = 2;
       amount *= multiplier;
       saved += amount;
+      clickCount += 1; // Increment clickCount locally
       localStorage.setItem('porkSaved', saved);
+      localStorage.setItem('clickCount', clickCount); // Update local storage
       wasteDiv.textContent = item.text;
       wasteDiv.style.opacity = 1;
       savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
