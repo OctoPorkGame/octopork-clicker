@@ -117,7 +117,12 @@
       { text: "$3.5M Jet Joyride", amount: 4900000000 },            // $4.9B
       { text: "$100M Bridge to Nowhere", amount: 2800000000 },       // $2.8B
       { text: "$50K Gold Paperclips", amount: 700000000 },          // $700M
-      { text: "$6B Typo Cover-Up", amount: 8400000000 }             // $8.4B
+      { text: "$6B Typo Cover-Up", amount: 8400000000 },            // $8.4B
+      { text: "$15M VIP Lobster Dinners", amount: 2100000000 },     // $2.1B
+      { text: "$80M Unused Monorail Project", amount: 5600000000 }, // $5.6B
+      { text: "$40K Platinum Office Pens", amount: 560000000 },     // $560M
+      { text: "$8M Study on Grass Growth", amount: 1120000000 },    // $1.12B
+      { text: "$200M Luxury Tank Paint Job", amount: 9800000000 }   // $9.8B
     ];
 
     let saved = parseInt(localStorage.getItem('porkSaved')) || 0;
@@ -453,11 +458,11 @@
         totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
       } else await updateGameData();
 
-      // Delay the fade-out to 2 seconds
+      // Delay the fade-out to 3 seconds (changed from 2 seconds)
       setTimeout(() => {
         wasteDiv.style.transition = 'opacity 0.5s'; // Smooth fade-out
         wasteDiv.style.opacity = 0;
-      }, 2000); // 2 seconds visibility
+      }, 3000); // 3 seconds visibility
     };
 
     function explodeWaste() {
