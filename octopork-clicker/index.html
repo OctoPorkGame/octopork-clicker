@@ -103,6 +103,7 @@
 
   <audio id="cha-ching" src="cha-ching.mp3"></audio>
   <audio id="shredder" src="shredder.mp3"></audio>
+  <!-- Removed power-up audio to avoid 404 -->
   <!-- <audio id="power-up-sound" src="power-up.mp3"></audio> -->
 
   <script>
@@ -144,7 +145,6 @@
     const ctx = canvas.getContext('2d');
     const chaChing = document.getElementById('cha-ching');
     const shredder = document.getElementById('shredder');
-    // const powerUpSound = document.getElementById('power-up-sound');
     const powerUpButton = document.getElementById('power-up');
     const joinTeamButton = document.getElementById('join-team');
 
@@ -263,7 +263,6 @@
       if (powerUpCooldown || currentLevel < 2) return;
       powerUpActive = true;
       powerUpButton.disabled = true;
-      // powerUpSound.play().catch(() => {});
       messageDiv.textContent = 'Double Pork Active! (10s)';
       setTimeout(() => {
         powerUpActive = false;
@@ -305,7 +304,7 @@
         clearTimeout(timeoutId);
         if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
         const data = await res.json();
-        console.log('Stats data received:', data); // Debug log
+        console.log('Stats data received:', data);
         totalSaved = data.total || 0;
         lastPlayerCount = playerCount;
         playerCount = data.players || 0;
@@ -327,7 +326,7 @@
         return;
       }
       try {
-        const controller = new AbortController();
+ strumenti = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         const response = await fetch('/.netlify/functions/leaderboard', {
           method: 'GET',
@@ -337,15 +336,15 @@
         clearTimeout(timeoutId);
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const data = await response.json();
-        console.log('Leaderboard data received:', data); // Debug log
+        console.log('Leaderboard data received:', data);
         const leaderboardBody = document.getElementById('leaderboard-body');
-        leaderboardBody.innerHTML = ''; // Clear existing rows
+        leaderboardBody.innerHTML = '';
         if (!data.leaderboard || !Array.isArray(data.leaderboard)) {
           console.error('Leaderboard data is not an array:', data);
           return;
         }
         data.leaderboard.forEach((entry, index) => {
-          console.log('Rendering leaderboard entry:', entry); // Debug log
+          console.log('Rendering leaderboard entry:', entry);
           const row = document.createElement('tr');
           if (entry.playerId === playerId) row.style.backgroundColor = '#d4edda';
           row.innerHTML = `<td>${index + 1}</td><td>${entry.name || 'Anonymous'}</td><td>$${entry.total.toLocaleString()}</td>`;
