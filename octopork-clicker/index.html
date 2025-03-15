@@ -8,7 +8,7 @@
     #game { position: relative; width: 800px; height: 600px; margin: 20px auto; overflow: hidden; }
     #octopork { cursor: pointer; width: 300px; position: absolute; left: 250px; top: 150px; }
     #waste { position: absolute; top: 50px; left: 350px; font-size: 18px; color: #ff4500; transition: opacity 0.5s; }
-    #saved, #total, #players, #message { font-size: 20px; margin: 10px; }
+    #saved, #total, #players, #message, #badge { font-size: 20px; margin: 10px; }
     canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
     .confetti { position: absolute; width: 10px; height: 10px; }
     /* Leaderboard styling */
@@ -31,35 +31,15 @@
       box-shadow: 0 0 10px rgba(0,0,0,0.3); 
       z-index: 1000; 
     }
-    #name-prompt input { 
-      padding: 5px; 
-      margin: 10px; 
-      font-size: 16px; 
-    }
-    #name-prompt button { 
-      padding: 5px 10px; 
-      background: #4CAF50; 
-      color: white; 
-      border: none; 
-      border-radius: 5px; 
-      cursor: pointer; 
-    }
-    #name-prompt button:hover { 
-      background: #45a049; 
-    }
-    /* Change name button styling */
-    #change-name { 
-      padding: 5px 10px; 
-      background: #007BFF; 
-      color: white; 
-      border: none; 
-      border-radius: 5px; 
-      cursor: pointer; 
-      margin-top: 10px; 
-    }
-    #change-name:hover { 
-      background: #0056b3; 
-    }
+    #name-prompt input { padding: 5px; margin: 10px; font-size: 16px; }
+    #name-prompt button { padding: 5px 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    #name-prompt button:hover { background: #45a049; }
+    /* Power-up and change name buttons */
+    #power-up, #change-name { padding: 5px 10px; background: #007BFF; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+    #power-up:disabled, #change-name:disabled { background: #cccccc; cursor: not-allowed; }
+    #power-up:hover:not(:disabled), #change-name:hover:not(:disabled) { background: #0056b3; }
+    /* Badge styling */
+    #badge { color: #FFD700; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -73,6 +53,11 @@
   <div id="total">Total $PORK Saved: $0</div>
   <div id="players">Players Shredding Waste: 0</div>
   <div id="message">Uncover $36T in waste—then we might launch $PORK to the moon!</div>
+  <div id="badge"></div>
+
+  <!-- Power-up and Change Name Buttons -->
+  <button id="power-up" disabled>Double Pork (Cooldown: 60s)</button>
+  <button id="change-name" onclick="changePlayerName()">Change Name</button>
 
   <!-- Leaderboard Section -->
   <div id="leaderboard-section">
@@ -90,9 +75,6 @@
     </table>
   </div>
 
-  <!-- Change Name Button -->
-  <button id="change-name" onclick="changePlayerName()">Change Name</button>
-
   <!-- Name Prompt Modal -->
   <div id="name-prompt" style="display: none;">
     <h3>Welcome to OctoPork Clicker!</h3>
@@ -104,6 +86,7 @@
 
   <audio id="cha-ching" src="cha-ching.mp3"></audio>
   <audio id="shredder" src="shredder.mp3"></audio>
+  <audio id="power-up-sound" src="power-up.mp3"></audio> <!-- Add this sound file if available -->
 
   <script>
     const wasteItems = [
@@ -123,6 +106,11 @@
     let playerCount = 1;
     let totalSaved = 0;
     const TARGET = 36000000000000; // $36T
+    let powerUpActive = false;
+    let powerUpTimeout = null;
+    let powerUpCooldown = false;
+    const POWER_UP_DURATION = 10000; // 10 seconds
+    const COOLDOWN_DURATION = 60000; // 60 seconds
 
     const octopork = document.getElementById('octopork');
     const wasteDiv = document.getElementById('waste');
@@ -130,14 +118,18 @@
     const totalDiv = document.getElementById('total');
     const playersDiv = document.getElementById('players');
     const messageDiv = document.getElementById('message');
+    const badgeDiv = document.getElementById('badge');
     const canvas = document.getElementById('coins');
     const ctx = canvas.getContext('2d');
     const chaChing = document.getElementById('cha-ching');
     const shredder = document.getElementById('shredder');
+    const powerUpSound = document.getElementById('power-up-sound');
+    const powerUpButton = document.getElementById('power-up');
 
     savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
     totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
     playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
+    updateBadge();
 
     // Generate or retrieve playerId
     let playerId = localStorage.getItem('playerId');
@@ -156,14 +148,11 @@
         console.log('Player name already set:', playerName);
         return;
       }
-
       if (window.location.protocol === 'file:') {
-        console.log('Running locally - skipping name check and mocking name');
         playerName = 'LocalPlayer';
         localStorage.setItem('playerName', playerName);
         return;
       }
-
       try {
         const response = await fetch('/.netlify/functions/get-player-name', {
           method: 'POST',
@@ -197,11 +186,9 @@
         alert('Please enter a name between 3 and 20 characters.');
         return;
       }
-
       playerName = nameInput;
       localStorage.setItem('playerName', playerName);
       document.getElementById('name-prompt').style.display = 'none';
-
       try {
         const response = await fetch('/.netlify/functions/set-player-name', {
           method: 'POST',
@@ -226,6 +213,31 @@
       if (e.key === 'Enter') submitPlayerName();
     });
 
+    function updateBadge() {
+      if (saved >= 100000000000) badgeDiv.textContent = 'Badge: Pork Tycoon!';
+      else if (saved >= 10000000000) badgeDiv.textContent = 'Badge: Waste Warrior!';
+      else if (saved >= 1000000000) badgeDiv.textContent = 'Badge: Shredder!';
+      else badgeDiv.textContent = '';
+    }
+
+    function activatePowerUp() {
+      if (powerUpCooldown) return;
+      powerUpActive = true;
+      powerUpButton.disabled = true;
+      powerUpSound.play().catch(() => {});
+      messageDiv.textContent = 'Double Pork Active! (10s)';
+      setTimeout(() => {
+        powerUpActive = false;
+        messageDiv.textContent = 'Uncover $36T in waste—then we might launch $PORK to the moon!';
+      }, POWER_UP_DURATION);
+      powerUpCooldown = true;
+      setTimeout(() => {
+        powerUpCooldown = false;
+        powerUpButton.disabled = false;
+        powerUpButton.textContent = 'Double Pork (Cooldown: 60s)';
+      }, COOLDOWN_DURATION);
+    }
+
     async function updateStats() {
       console.log('Attempting to fetch stats...');
       if (window.location.protocol === 'file:') {
@@ -240,12 +252,9 @@
             signal: controller.signal
           });
           clearTimeout(timeoutId);
-          console.log('Fetch response status:', res.status, 'OK:', res.ok, 'Headers:', [...res.headers]);
           if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
           const text = await res.text();
-          console.log('Raw response text:', text);
           const data = text ? JSON.parse(text) : { total: 0, players: 0 };
-          console.log('Parsed data:', data);
           totalSaved = data.total || 0;
           playerCount = data.players || 0;
         } catch (err) {
@@ -277,11 +286,8 @@
           signal: controller.signal
         });
         clearTimeout(timeoutId);
-        console.log('Leaderboard fetch response status:', response.status, 'OK:', response.ok);
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-
         const data = await response.json();
-        console.log('Leaderboard response:', data);
         const leaderboardBody = document.getElementById('leaderboard-body');
         leaderboardBody.innerHTML = '';
         data.leaderboard.forEach((entry, index) => {
@@ -310,13 +316,18 @@
     initializeGame();
     setInterval(updateGameData, 5000);
 
+    powerUpButton.addEventListener('click', activatePowerUp);
+
     octopork.onclick = async () => {
       const item = wasteItems[Math.floor(Math.random() * wasteItems.length)];
-      saved += item.amount;
+      let amount = item.amount;
+      if (powerUpActive && Math.random() < 0.9) amount *= 2; // 90% chance to double during power-up
+      saved += amount;
       localStorage.setItem('porkSaved', saved);
       wasteDiv.textContent = item.text;
       wasteDiv.style.opacity = 1;
       savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
+      updateBadge();
 
       chaChing.play().catch(() => {});
       shredder.play().catch(() => {});
@@ -324,11 +335,11 @@
       explodeWaste();
       dropCoin();
 
-      console.log('Sending click with amount:', item.amount, 'playerId:', playerId);
+      console.log('Sending click with amount:', amount, 'playerId:', playerId);
       fetch('/.netlify/functions/click', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: item.amount, playerId })
+        body: JSON.stringify({ amount, playerId })
       })
         .then(res => {
           console.log('Click fetch response status:', res.status);
@@ -338,11 +349,9 @@
         .catch(err => console.error('Click report failed:', err.message));
 
       if (window.location.protocol === 'file:') {
-        console.log('Running locally - mocking updateStats');
-        totalSaved += item.amount;
+        totalSaved += amount;
         playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
         totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
-        savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
       } else {
         await updateGameData();
       }
