@@ -2,10 +2,16 @@ const admin = require('firebase-admin');
 
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)),
-    databaseURL: process.env.FIREBASE_DATABASE_URL,
-  });
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)),
+      databaseURL: process.env.FIREBASE_DATABASE_URL,
+    });
+    console.log('Firebase Admin SDK initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize Firebase Admin SDK:', error.message, error.stack);
+    throw error;
+  }
 }
 
 const db = admin.database();
@@ -46,13 +52,11 @@ exports.handler = async (event, context) => {
   try {
     const { amount, multiplier = 1, playerId, level, teamId } = body;
 
-    // Validate inputs
+    // Basic input validation
     if (!amount || amount <= 0) throw new Error('Amount is required and must be positive');
     if (!playerId || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(playerId)) {
       throw new Error('Valid playerId (UUID) is required');
     }
-
-    // Validate level (assuming 1-10 based on your game logic)
     if (level < 1 || level > 10 || !Number.isInteger(level)) {
       throw new Error('Invalid level: must be an integer between 1 and 10');
     }
@@ -65,11 +69,13 @@ exports.handler = async (event, context) => {
     if (level >= 10 && teamId) clickMultiplier = 4;
     effectiveAmount *= clickMultiplier;
 
+    // Database references
     const clicksRef = db.ref('clicks');
     const statsRef = db.ref('stats/global');
     const playersRef = db.ref(`players/${playerId}`);
     const playerTotalsRef = db.ref(`playerTotals/${playerId}`);
 
+    // Record the click
     const clickResult = await clicksRef.push({
       amount,
       multiplier,
@@ -81,18 +87,23 @@ exports.handler = async (event, context) => {
     });
     console.log('Click recorded with ID:', clickResult.key);
 
+    // Update global stats
     await statsRef.update({
       total: admin.database.ServerValue.increment(effectiveAmount),
       lastUpdated: new Date().toISOString(),
     });
+
+    // Update player totals
     await playerTotalsRef.update({
       total: admin.database.ServerValue.increment(effectiveAmount),
       clickCount: admin.database.ServerValue.increment(1),
       lastUpdated: new Date().toISOString(),
     });
+
+    // Update player last seen
     await playersRef.update({ lastSeen: new Date().toISOString() });
 
-    // Initialize player totals if they don't exist
+    // Initialize player totals if new
     const playerTotalSnap = await playerTotalsRef.once('value');
     if (!playerTotalSnap.exists()) {
       await playerTotalsRef.set({
