@@ -326,14 +326,14 @@
         return;
       }
       try {
- strumenti = new AbortController();
+        let controller = new AbortController(); // Moved inside try block to ensure proper scope
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         const response = await fetch('/.netlify/functions/leaderboard', {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
           signal: controller.signal
         });
-        clearTimeout(timeoutId);
+        clearTimeout(timeoutId); // Clear timeout after fetch
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const data = await response.json();
         console.log('Leaderboard data received:', data);
@@ -357,6 +357,7 @@
       } catch (error) {
         console.error('Leaderboard fetch failed:', error.message);
       } finally {
+        const leaderboardLoading = document.getElementById('leaderboard-loading');
         leaderboardLoading.style.display = 'none';
       }
     }
