@@ -18,6 +18,35 @@
     #leaderboard-table th { background-color: #f2f2f2; }
     #leaderboard-table tr:nth-child(even) { background-color: #f9f9f9; }
     #leaderboard-table tr:hover { background-color: #e6e6e6; }
+    /* Name prompt styling */
+    #name-prompt { 
+      position: fixed; 
+      top: 50%; 
+      left: 50%; 
+      transform: translate(-50%, -50%); 
+      background: white; 
+      padding: 20px; 
+      border: 2px solid #333; 
+      border-radius: 10px; 
+      box-shadow: 0 0 10px rgba(0,0,0,0.3); 
+      z-index: 1000; 
+    }
+    #name-prompt input { 
+      padding: 5px; 
+      margin: 10px; 
+      font-size: 16px; 
+    }
+    #name-prompt button { 
+      padding: 5px 10px; 
+      background: #4CAF50; 
+      color: white; 
+      border: none; 
+      border-radius: 5px; 
+      cursor: pointer; 
+    }
+    #name-prompt button:hover { 
+      background: #45a049; 
+    }
   </style>
 </head>
 <body>
@@ -39,12 +68,21 @@
       <thead>
         <tr>
           <th>Rank</th>
-          <th>Player ID</th>
+          <th>Player Name</th>
           <th>Total $PORK Saved</th>
         </tr>
       </thead>
       <tbody id="leaderboard-body"></tbody>
     </table>
+  </div>
+
+  <!-- Name Prompt Modal -->
+  <div id="name-prompt" style="display: none;">
+    <h3>Welcome to OctoPork Clicker!</h3>
+    <p>Please enter your player name:</p>
+    <input type="text" id="player-name-input" maxlength="20" placeholder="Your name">
+    <br>
+    <button onclick="submitPlayerName()">Submit</button>
   </div>
 
   <audio id="cha-ching" src="cha-ching.mp3"></audio>
@@ -93,6 +131,76 @@
     } else {
       console.log('Using existing playerId:', playerId);
     }
+
+    // Check and prompt for player name
+    let playerName = localStorage.getItem('playerName');
+    async function checkPlayerName() {
+      if (playerName) {
+        console.log('Player name already set:', playerName);
+        return;
+      }
+
+      if (window.location.protocol === 'file:') {
+        console.log('Running locally - skipping name check and mocking name');
+        playerName = 'LocalPlayer';
+        localStorage.setItem('playerName', playerName);
+        return;
+      }
+
+      try {
+        const response = await fetch('/.netlify/functions/get-player-name', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId })
+        });
+        const data = await response.json();
+        if (data.name) {
+          playerName = data.name;
+          localStorage.setItem('playerName', playerName);
+          console.log('Player name retrieved from Firebase:', playerName);
+        } else {
+          showNamePrompt();
+        }
+      } catch (error) {
+        console.error('Failed to check player name:', error.message);
+        showNamePrompt();
+      }
+    }
+
+    function showNamePrompt() {
+      const namePrompt = document.getElementById('name-prompt');
+      namePrompt.style.display = 'block';
+      document.getElementById('player-name-input').focus();
+    }
+
+    async function submitPlayerName() {
+      const nameInput = document.getElementById('player-name-input').value.trim();
+      if (!nameInput || nameInput.length < 3 || nameInput.length > 20) {
+        alert('Please enter a name between 3 and 20 characters.');
+        return;
+      }
+
+      playerName = nameInput;
+      localStorage.setItem('playerName', playerName);
+      document.getElementById('name-prompt').style.display = 'none';
+
+      try {
+        const response = await fetch('/.netlify/functions/set-player-name', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId, name: playerName })
+        });
+        const data = await response.json();
+        console.log('Set player name response:', data);
+      } catch (error) {
+        console.error('Failed to set player name:', error.message);
+      }
+    }
+
+    // Allow Enter key to submit name
+    document.getElementById('player-name-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') submitPlayerName();
+    });
 
     async function updateStats() {
       console.log('Attempting to fetch stats...');
@@ -148,15 +256,17 @@
         const data = await response.json();
         console.log('Leaderboard response:', data);
         const leaderboardBody = document.getElementById('leaderboard-body');
-        leaderboardBody.innerHTML = ''; // Clear existing rows
+        leaderboardBody.innerHTML = '';
 
         data.leaderboard.forEach((entry, index) => {
           const row = document.createElement('tr');
-          // Truncate playerId to first 8 characters for readability
-          const shortPlayerId = entry.playerId.substring(0, 8) + '...';
+          // Highlight the current player's row
+          if (entry.playerId === playerId) {
+            row.style.backgroundColor = '#d4edda'; // Light green for current player
+          }
           row.innerHTML = `
             <td>${index + 1}</td>
-            <td>${shortPlayerId}</td>
+            <td>${entry.name || 'Anonymous'}</td>
             <td>$${entry.total.toLocaleString()}</td>
           `;
           leaderboardBody.appendChild(row);
@@ -166,13 +276,18 @@
       }
     }
 
-    // Combine stats and leaderboard updates in one interval
     async function updateGameData() {
       await updateStats();
       await updateLeaderboard();
     }
 
-    updateGameData();
+    // Initialize game data and check player name
+    async function initializeGame() {
+      await checkPlayerName();
+      await updateGameData();
+    }
+
+    initializeGame();
     setInterval(updateGameData, 5000);
 
     octopork.onclick = async () => {
