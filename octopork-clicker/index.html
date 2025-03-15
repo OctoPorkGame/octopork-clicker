@@ -64,22 +64,22 @@
 
     // Generate or retrieve playerId
     let playerId = localStorage.getItem('playerId');
-    if (!playerId) {
+    if (!playerId || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(playerId)) {
       playerId = crypto.randomUUID();
       localStorage.setItem('playerId', playerId);
+      console.log('Generated new playerId:', playerId);
+    } else {
+      console.log('Using existing playerId:', playerId);
     }
-    console.log('Using playerId:', playerId);
 
     async function updateStats() {
       console.log('Attempting to fetch stats...');
-      // Check if running locally (file:// protocol)
       if (window.location.protocol === 'file:') {
         console.log('Running locally - skipping fetch and mocking data');
-        // Don't reset totalSaved or playerCount - preserve their values
       } else {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
           const res = await fetch('/.netlify/functions/stats', {
             method: 'GET',
             headers: { 'Accept': 'application/json' },
@@ -90,11 +90,10 @@
           if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
           const text = await res.text();
           console.log('Raw response text:', text);
-          const data = text ? JSON.parse(text) : {};
+          const data = text ? JSON.parse(text) : { total: 0, players: 0 };
           console.log('Parsed data:', data);
-          const { total = 0, players = 0 } = data;
-          totalSaved = total;
-          playerCount = players;
+          totalSaved = data.total || 0;
+          playerCount = data.players || 0;
         } catch (err) {
           console.error('Stats fetch failed:', err.message);
         }
@@ -122,22 +121,27 @@
       explodeWaste();
       dropCoin();
 
-      // Uncomment for deployment
+      console.log('Sending click with amount:', item.amount, 'playerId:', playerId);
       fetch('/.netlify/functions/click', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: item.amount, playerId })
-      }).catch(err => console.error('Click report failed:', err));
+      })
+        .then(res => {
+          console.log('Click fetch response status:', res.status);
+          return res.json();
+        })
+        .then(data => console.log('Click response:', data))
+        .catch(err => console.error('Click report failed:', err.message));
 
-      // Mock local updates
       if (window.location.protocol === 'file:') {
         console.log('Running locally - mocking updateStats');
-        totalSaved += item.amount; // Accumulate total locally
+        totalSaved += item.amount;
         playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
         totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
-        savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`; // Already updated
+        savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
       } else {
-        await updateStats(); // Call when deployed
+        await updateStats();
       }
     };
 
@@ -190,6 +194,10 @@
         if (coin.y < 600 && coin.opacity > 0) requestAnimationFrame(animate);
       };
       animate();
+    }
+  </script>
+</body>
+</html>
     }
   </script>
 </body>
