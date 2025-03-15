@@ -1,56 +1,50 @@
-const { initializeApp } = require('firebase/app');
-const { getDatabase, ref, get } = require('firebase/database');
+const admin = require('firebase-admin');
 
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.FIREBASE_DATABASE_URL,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID,
-  measurementId: process.env.FIREBASE_MEASUREMENT_ID,
-};
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)),
+    databaseURL: process.env.FIREBASE_DATABASE_URL,
+  });
+}
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const db = admin.database();
 
 exports.handler = async (event, context) => {
   const headers = {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': 'https://octoporkgame.netlify.app',
     'Access-Control-Allow-Methods': 'POST',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+  }
+
   let body;
   try {
-    body = JSON.parse(event.body);
-  } catch (error) {
+    body = event.body ? JSON.parse(event.body) : {};
+  } catch (parseError) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
   }
 
-  const { playerId } = body;
-  if (!playerId) {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'playerId is required' }) };
-  }
-
   try {
-    const playerTotalRef = ref(db, `playerTotals/${playerId}`);
-    const snapshot = await get(playerTotalRef);
-    if (!snapshot.exists()) {
-      return { statusCode: 404, headers, body: JSON.stringify({ error: 'Player total not found' }) };
+    const { playerId } = body;
+    if (!playerId || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(playerId)) {
+      throw new Error('Valid playerId (UUID) is required');
     }
-    const data = snapshot.val();
+
+    const playerTotalsRef = db.ref(`playerTotals/${playerId}`);
+    const snapshot = await playerTotalsRef.once('value');
+    const data = snapshot.val() || { total: 0, clickCount: 0 };
+
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        total: data.total || 0,
-        clickCount: data.clickCount || 0 // Add clickCount from the updated click.js
-      }),
+      body: JSON.stringify(data),
     };
   } catch (error) {
+    console.error('Get player total error:', error.message);
     return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
   }
 };
