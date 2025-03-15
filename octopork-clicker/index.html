@@ -104,7 +104,7 @@
   <audio id="cha-ching" src="cha-ching.mp3"></audio>
   <audio id="shredder" src="shredder.mp3"></audio>
   <!-- Removed power-up audio to avoid 404 -->
-  <!-- <audio id="power-up-sound" src="power-up.mp3"></audio> -->
+  <!-- <audio id="power-up-sound" src="power-up.mp3"></audio -->
 
   <script>
     const wasteItems = [
@@ -428,7 +428,7 @@
       localStorage.setItem('porkSaved', saved);
       localStorage.setItem('clickCount', clickCount);
       wasteDiv.textContent = item.text;
-      wasteDiv.style.opacity = 1;
+      wasteDiv.style.opacity = 1; // Show the flash immediately
       savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
       updateBadge();
       updateLevelDisplay();
@@ -436,7 +436,7 @@
       chaChing.play().catch(() => {});
       shredder.play().catch(() => {});
 
-      explodeWaste();
+      explodeWaste(); // Start the confetti animation
       dropCoin();
 
       console.log('Sending click with amount:', amount, 'multiplier:', multiplier, 'playerId:', playerId, 'level:', currentLevel, 'teamId:', teamId);
@@ -452,6 +452,12 @@
         playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
         totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
       } else await updateGameData();
+
+      // Delay the fade-out to 2 seconds
+      setTimeout(() => {
+        wasteDiv.style.transition = 'opacity 0.5s'; // Smooth fade-out
+        wasteDiv.style.opacity = 0;
+      }, 2000); // 2 seconds visibility
     };
 
     function explodeWaste() {
@@ -477,10 +483,11 @@
           confetti.style.left = `${x}px`;
           confetti.style.top = `${y}px`;
           if (y < 600) requestAnimationFrame(animate);
-          else { confetti.remove(); wasteDiv.style.opacity = 0; }
+          else confetti.remove(); // Remove confetti when it reaches the bottom
         };
         animate();
       }
+      // Removed wasteDiv.opacity = 0 from here to let setTimeout handle it
     }
 
     function dropCoin() {
