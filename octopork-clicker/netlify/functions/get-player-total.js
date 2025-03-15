@@ -41,7 +41,15 @@ exports.handler = async (event, context) => {
     if (!snapshot.exists()) {
       return { statusCode: 404, headers, body: JSON.stringify({ error: 'Player total not found' }) };
     }
-    return { statusCode: 200, headers, body: JSON.stringify({ total: snapshot.val().total }) };
+    const data = snapshot.val();
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        total: data.total || 0,
+        clickCount: data.clickCount || 0 // Add clickCount from the updated click.js
+      }),
+    };
   } catch (error) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
   }
