@@ -18,7 +18,11 @@ exports.handler = async (event, context) => {
   };
 
   if (event.httpMethod !== 'GET') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method Not Allowed' }),
+    };
   }
 
   try {
@@ -33,6 +37,10 @@ exports.handler = async (event, context) => {
     };
   } catch (error) {
     console.error('Stats fetch error:', error.message);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: error.message }),
+    };
   }
 };
