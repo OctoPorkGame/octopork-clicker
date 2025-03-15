@@ -44,7 +44,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { amount, playerId, multiplier = 1 } = body; // Added multiplier for power-ups
+    const { amount, multiplier = 1, playerId } = body;
     console.log('Extracted amount:', amount, 'multiplier:', multiplier, 'playerId:', playerId);
     if (!amount || amount <= 0) throw new Error('Amount is required and must be positive');
     if (!playerId || typeof playerId !== 'string' || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(playerId)) {
@@ -55,6 +55,7 @@ exports.handler = async (event, context) => {
     const clicksRef = ref(db, 'clicks');
     const statsRef = ref(db, 'stats/global');
     const playersRef = ref(db, 'players');
+    const playerRef = ref(db, `players/${playerId}`);
     const playerTotalsRef = ref(db, `playerTotals/${playerId}`);
 
     const clickResult = await push(clicksRef, {
@@ -87,20 +88,29 @@ exports.handler = async (event, context) => {
       throw new Error(`Failed to update /playerTotals: ${error.message}`);
     }
 
-    const playerSnap = await get(ref(db, `players/${playerId}`)).catch((err) => {
+    const playerSnap = await get(playerRef).catch((err) => {
       throw new Error(`Failed to read /players/${playerId}: ${err.message}`);
     });
     if (!playerSnap.exists()) {
-      await update(ref(db, `players/${playerId}`), {
+      await update(playerRef, {
         lastSeen: new Date().toISOString(),
+        joined: new Date().toISOString(),
       }).catch((err) => {
         throw new Error(`Failed to write to /players/${playerId}: ${err.message}`);
       });
-      await update(statsRef, { players: increment(1) }).catch((err) => {
+
+      const statsSnap = await get(statsRef);
+      let currentPlayers = statsSnap.exists() ? statsSnap.val().players || 0 : 0;
+      await update(statsRef, {
+        players: currentPlayers + 1,
+      }).catch((err) => {
         throw new Error(`Failed to update /stats/global/players: ${err.message}`);
       });
-      console.log('New player added:', playerId);
+      console.log('New player added:', playerId, 'Total players now:', currentPlayers + 1);
     } else {
+      await update(playerRef, {
+        lastSeen: new Date().toISOString(),
+      });
       console.log('Player already exists:', playerId);
     }
 
