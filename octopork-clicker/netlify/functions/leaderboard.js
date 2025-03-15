@@ -26,16 +26,27 @@ exports.handler = async (event, context) => {
 
   try {
     const playerTotalsRef = ref(db, 'playerTotals');
-    const snapshot = await get(playerTotalsRef);
-    console.log('Player totals snapshot:', snapshot.val());
+    const playersRef = ref(db, 'players');
+    const [totalsSnapshot, playersSnapshot] = await Promise.all([get(playerTotalsRef), get(playersRef)]);
+    console.log('Player totals snapshot:', totalsSnapshot.val());
+    console.log('Players snapshot:', playersSnapshot.val());
 
-    if (!snapshot.exists()) {
+    if (!totalsSnapshot.exists()) {
       return { statusCode: 200, headers, body: JSON.stringify({ leaderboard: [] }) };
     }
 
-    const totals = snapshot.val();
+    const totals = totalsSnapshot.val();
+    const players = playersSnapshot.val() || {};
+
     const leaderboard = Object.entries(totals)
-      .map(([playerId, data]) => ({ playerId, name: 'Anonymous', total: data.total }))
+      .map(([playerId, data]) => {
+        const playerData = players[playerId] || {};
+        return {
+          playerId,
+          name: playerData.name || 'Anonymous', // Fetch name if exists, else 'Anonymous'
+          total: data.total
+        };
+      })
       .sort((a, b) => b.total - a.total)
       .slice(0, 10);
 
