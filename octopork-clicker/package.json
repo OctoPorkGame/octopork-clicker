@@ -1,11 +1,15 @@
- {
-  "name": "octopork-clicker",
+{
+  "name": "octopork-clicker-functions",
   "version": "1.0.0",
-  "description": "OctoPork Clicker Game",
-  "dependencies": {
-    "firebase": "^10.13.2"
-  },
+  "description": "Netlify Functions for Octopork Clicker game",
+  "main": "index.js",
   "scripts": {
-    "start": "echo 'No start script needed for Netlify'"
-  }
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.10.1"
+  },
+  "devDependencies": {},
+  "author": "Your Name",
+  "license": "MIT"
 }
