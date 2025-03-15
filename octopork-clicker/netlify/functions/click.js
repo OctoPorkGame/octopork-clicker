@@ -1,6 +1,7 @@
 const { initializeApp } = require('firebase/app');
 const { getDatabase, ref, push, update, increment, get } = require('firebase/database');
 
+// Firebase configuration using environment variables
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -11,6 +12,14 @@ const firebaseConfig = {
   appId: process.env.FIREBASE_APP_ID,
   measurementId: process.env.FIREBASE_MEASUREMENT_ID,
 };
+
+// Debug log to verify environment variables
+console.log('Firebase Config:', firebaseConfig);
+
+// Validate required fields
+if (!firebaseConfig.apiKey || !firebaseConfig.databaseURL || !firebaseConfig.projectId) {
+  throw new Error('Missing required Firebase environment variables: apiKey, databaseURL, or projectId');
+}
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
