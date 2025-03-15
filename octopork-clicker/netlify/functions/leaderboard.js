@@ -52,7 +52,6 @@ exports.handler = async (event, context) => {
       .sort((a, b) => b.total - a.total)
       .slice(0, 10);
 
-    // Fetch names for each player
     const leaderboard = [];
     for (const entry of leaderboardEntries) {
       const playerRef = ref(db, `players/${entry.playerId}`);
