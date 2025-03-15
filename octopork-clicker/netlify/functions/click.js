@@ -1,7 +1,6 @@
 const { initializeApp } = require('firebase/app');
 const { getDatabase, ref, push, update, increment, get } = require('firebase/database');
 
-// Firebase configuration from environment variables
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -13,7 +12,6 @@ const firebaseConfig = {
   measurementId: process.env.FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase once at the module level
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
