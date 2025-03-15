@@ -32,10 +32,10 @@ exports.handler = async (event, context) => {
 
   try {
     const playerTotalsRef = ref(db, 'playerTotals');
-    const snapshot = await get(playerTotalsRef);
-    console.log('Player totals snapshot:', snapshot.val());
+    const playerTotalsSnapshot = await get(playerTotalsRef);
+    console.log('Player totals snapshot:', playerTotalsSnapshot.val());
 
-    if (!snapshot.exists()) {
+    if (!playerTotalsSnapshot.exists()) {
       return {
         statusCode: 200,
         headers,
@@ -43,14 +43,27 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const playerTotals = snapshot.val();
-    const leaderboard = Object.entries(playerTotals)
+    const playerTotals = playerTotalsSnapshot.val();
+    const leaderboardEntries = Object.entries(playerTotals)
       .map(([playerId, data]) => ({
         playerId,
         total: data.total || 0,
       }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 10);
+
+    // Fetch names for each player
+    const leaderboard = [];
+    for (const entry of leaderboardEntries) {
+      const playerRef = ref(db, `players/${entry.playerId}`);
+      const playerSnapshot = await get(playerRef);
+      const playerData = playerSnapshot.val();
+      leaderboard.push({
+        playerId: entry.playerId,
+        total: entry.total,
+        name: playerData?.name || 'Anonymous',
+      });
+    }
 
     return {
       statusCode: 200,
