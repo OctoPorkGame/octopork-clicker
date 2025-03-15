@@ -11,6 +11,13 @@
     #saved, #total, #players, #message { font-size: 20px; margin: 10px; }
     canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
     .confetti { position: absolute; width: 10px; height: 10px; }
+    /* Leaderboard styling */
+    #leaderboard-section { margin-top: 20px; width: 800px; margin-left: auto; margin-right: auto; }
+    #leaderboard-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    #leaderboard-table th, #leaderboard-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    #leaderboard-table th { background-color: #f2f2f2; }
+    #leaderboard-table tr:nth-child(even) { background-color: #f9f9f9; }
+    #leaderboard-table tr:hover { background-color: #e6e6e6; }
   </style>
 </head>
 <body>
@@ -24,6 +31,21 @@
   <div id="total">Total $PORK Saved: $0</div>
   <div id="players">Players Shredding Waste: 0</div>
   <div id="message">Uncover $36T in waste—then we might launch $PORK to the moon!</div>
+
+  <!-- Leaderboard Section -->
+  <div id="leaderboard-section">
+    <h2>Leaderboard - Top 10 Shredders</h2>
+    <table id="leaderboard-table">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Player ID</th>
+          <th>Total $PORK Saved</th>
+        </tr>
+      </thead>
+      <tbody id="leaderboard-body"></tbody>
+    </table>
+  </div>
 
   <audio id="cha-ching" src="cha-ching.mp3"></audio>
   <audio id="shredder" src="shredder.mp3"></audio>
@@ -43,8 +65,8 @@
     ];
 
     let saved = parseInt(localStorage.getItem('porkSaved')) || 0;
-    let playerCount = 1; // Initialize with 1 for the current session
-    let totalSaved = 0;  // Initialize but don't reset in updateStats
+    let playerCount = 1;
+    let totalSaved = 0;
     const TARGET = 36000000000000; // $36T
 
     const octopork = document.getElementById('octopork');
@@ -104,8 +126,54 @@
         messageDiv.textContent = '$36T uncovered! Time to launch $PORK—stay tuned!';
       }
     }
-    updateStats();
-    setInterval(updateStats, 5000);
+
+    async function updateLeaderboard() {
+      console.log('Attempting to fetch leaderboard...');
+      if (window.location.protocol === 'file:') {
+        console.log('Running locally - skipping leaderboard fetch and mocking data');
+        return;
+      }
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const response = await fetch('/.netlify/functions/leaderboard', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        console.log('Leaderboard fetch response status:', response.status, 'OK:', response.ok);
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+
+        const data = await response.json();
+        console.log('Leaderboard response:', data);
+        const leaderboardBody = document.getElementById('leaderboard-body');
+        leaderboardBody.innerHTML = ''; // Clear existing rows
+
+        data.leaderboard.forEach((entry, index) => {
+          const row = document.createElement('tr');
+          // Truncate playerId to first 8 characters for readability
+          const shortPlayerId = entry.playerId.substring(0, 8) + '...';
+          row.innerHTML = `
+            <td>${index + 1}</td>
+            <td>${shortPlayerId}</td>
+            <td>$${entry.total.toLocaleString()}</td>
+          `;
+          leaderboardBody.appendChild(row);
+        });
+      } catch (error) {
+        console.error('Leaderboard fetch failed:', error.message);
+      }
+    }
+
+    // Combine stats and leaderboard updates in one interval
+    async function updateGameData() {
+      await updateStats();
+      await updateLeaderboard();
+    }
+
+    updateGameData();
+    setInterval(updateGameData, 5000);
 
     octopork.onclick = async () => {
       const item = wasteItems[Math.floor(Math.random() * wasteItems.length)];
@@ -141,7 +209,7 @@
         totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
         savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
       } else {
-        await updateStats();
+        await updateGameData();
       }
     };
 
@@ -194,10 +262,6 @@
         if (coin.y < 600 && coin.opacity > 0) requestAnimationFrame(animate);
       };
       animate();
-    }
-  </script>
-</body>
-</html>
     }
   </script>
 </body>
