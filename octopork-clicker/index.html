@@ -47,6 +47,19 @@
     #name-prompt button:hover { 
       background: #45a049; 
     }
+    /* Change name button styling */
+    #change-name { 
+      padding: 5px 10px; 
+      background: #007BFF; 
+      color: white; 
+      border: none; 
+      border-radius: 5px; 
+      cursor: pointer; 
+      margin-top: 10px; 
+    }
+    #change-name:hover { 
+      background: #0056b3; 
+    }
   </style>
 </head>
 <body>
@@ -64,6 +77,7 @@
   <!-- Leaderboard Section -->
   <div id="leaderboard-section">
     <h2>Leaderboard - Top 10 Shredders</h2>
+    <div id="leaderboard-loading" style="display: none;">Loading...</div>
     <table id="leaderboard-table">
       <thead>
         <tr>
@@ -75,6 +89,9 @@
       <tbody id="leaderboard-body"></tbody>
     </table>
   </div>
+
+  <!-- Change Name Button -->
+  <button id="change-name" onclick="changePlayerName()">Change Name</button>
 
   <!-- Name Prompt Modal -->
   <div id="name-prompt" style="display: none;">
@@ -153,6 +170,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ playerId })
         });
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const data = await response.json();
         if (data.name) {
           playerName = data.name;
@@ -190,6 +208,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ playerId, name: playerName })
         });
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const data = await response.json();
         console.log('Set player name response:', data);
       } catch (error) {
@@ -197,7 +216,12 @@
       }
     }
 
-    // Allow Enter key to submit name
+    function changePlayerName() {
+      localStorage.removeItem('playerName');
+      playerName = null;
+      showNamePrompt();
+    }
+
     document.getElementById('player-name-input').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') submitPlayerName();
     });
@@ -237,8 +261,11 @@
 
     async function updateLeaderboard() {
       console.log('Attempting to fetch leaderboard...');
+      const leaderboardLoading = document.getElementById('leaderboard-loading');
+      leaderboardLoading.style.display = 'block';
       if (window.location.protocol === 'file:') {
         console.log('Running locally - skipping leaderboard fetch and mocking data');
+        leaderboardLoading.style.display = 'none';
         return;
       }
       try {
@@ -257,22 +284,16 @@
         console.log('Leaderboard response:', data);
         const leaderboardBody = document.getElementById('leaderboard-body');
         leaderboardBody.innerHTML = '';
-
         data.leaderboard.forEach((entry, index) => {
           const row = document.createElement('tr');
-          // Highlight the current player's row
-          if (entry.playerId === playerId) {
-            row.style.backgroundColor = '#d4edda'; // Light green for current player
-          }
-          row.innerHTML = `
-            <td>${index + 1}</td>
-            <td>${entry.name || 'Anonymous'}</td>
-            <td>$${entry.total.toLocaleString()}</td>
-          `;
+          if (entry.playerId === playerId) row.style.backgroundColor = '#d4edda';
+          row.innerHTML = `<td>${index + 1}</td><td>${entry.name || 'Anonymous'}</td><td>$${entry.total.toLocaleString()}</td>`;
           leaderboardBody.appendChild(row);
         });
       } catch (error) {
         console.error('Leaderboard fetch failed:', error.message);
+      } finally {
+        leaderboardLoading.style.display = 'none';
       }
     }
 
@@ -281,7 +302,6 @@
       await updateLeaderboard();
     }
 
-    // Initialize game data and check player name
     async function initializeGame() {
       await checkPlayerName();
       await updateGameData();
