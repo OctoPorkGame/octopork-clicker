@@ -8,9 +8,23 @@
     #game { position: relative; width: 800px; height: 600px; margin: 20px auto; overflow: hidden; }
     #octopork { cursor: pointer; width: 300px; position: absolute; left: 250px; top: 150px; }
     #waste { position: absolute; top: 50px; left: 350px; font-size: 18px; color: #ff4500; transition: opacity 0.5s; }
-    #saved, #total, #players, #message, #badge { font-size: 20px; margin: 10px; }
+    #saved, #total, #players, #message, #badge, #level-display { font-size: 20px; margin: 10px; }
     canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
     .confetti { position: absolute; width: 10px; height: 10px; }
+    #progress-bar {
+      width: 80%;
+      height: 20px;
+      background: #ddd;
+      margin: 10px auto;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    #progress {
+      height: 100%;
+      background: #4CAF50;
+      width: 0%;
+      transition: width 0.5s;
+    }
     #leaderboard-section { margin-top: 20px; width: 800px; margin-left: auto; margin-right: auto; }
     #leaderboard-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     #leaderboard-table th, #leaderboard-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
@@ -32,9 +46,9 @@
     #name-prompt input { padding: 5px; margin: 10px; font-size: 16px; }
     #name-prompt button { padding: 5px 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; }
     #name-prompt button:hover { background: #45a049; }
-    #power-up, #change-name { padding: 5px 10px; background: #007BFF; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
-    #power-up:disabled, #change-name:disabled { background: #cccccc; cursor: not-allowed; }
-    #power-up:hover:not(:disabled), #change-name:hover:not(:disabled) { background: #0056b3; }
+    #power-up, #change-name, #join-team { padding: 5px 10px; background: #007BFF; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+    #power-up:disabled, #change-name:disabled, #join-team:disabled { background: #cccccc; cursor: not-allowed; }
+    #power-up:hover:not(:disabled), #change-name:hover:not(:disabled), #join-team:hover:not(:disabled) { background: #0056b3; }
     #badge { color: #FFD700; font-weight: bold; }
     .new-player { color: green; font-weight: bold; animation: flash 1s ease-in-out 2; }
     @keyframes flash {
@@ -53,11 +67,16 @@
   <div id="saved">$PORK Saved: $0</div>
   <div id="total">Total $PORK Saved: $0</div>
   <div id="players">Players Shredding Waste: 0</div>
-  <div id="message">Uncover $36T in waste—then we might launch $PORK to the moon!</div>
+  <div id="message">Shred $36T in waste—join the epic mission!</div>
   <div id="badge"></div>
+  <div id="progress-bar">
+    <div id="progress"></div>
+  </div>
+  <div id="level-display">Level: 1 (0/1,000 clicks)</div>
 
   <button id="power-up" disabled>Double Pork (Cooldown: 60s)</button>
   <button id="change-name" onclick="changePlayerName()">Change Name</button>
+  <button id="join-team" onclick="joinTeam()">Join Team</button>
 
   <div id="leaderboard-section">
     <h2>Leaderboard - Top 10 Shredders</h2>
@@ -104,6 +123,10 @@
     let playerCount = 0;
     let lastPlayerCount = 0;
     let totalSaved = 0;
+    let currentLevel = parseInt(localStorage.getItem('currentLevel')) || 1;
+    let xp = parseInt(localStorage.getItem('xp')) || 0;
+    let teamId = null;
+    const levelGoals = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000, 2000000];
     const TARGET = 36000000000000;
     let powerUpActive = false;
     let powerUpCooldown = false;
@@ -123,27 +146,24 @@
     const shredder = document.getElementById('shredder');
     const powerUpSound = document.getElementById('power-up-sound');
     const powerUpButton = document.getElementById('power-up');
+    const joinTeamButton = document.getElementById('join-team');
 
     savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
     totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
     playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
     updateBadge();
+    updateLevelDisplay();
 
     let playerId = localStorage.getItem('playerId');
     if (!playerId || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(playerId)) {
       playerId = crypto.randomUUID();
       localStorage.setItem('playerId', playerId);
       console.log('Generated new playerId:', playerId);
-    } else {
-      console.log('Using existing playerId:', playerId);
     }
-
     let playerName = localStorage.getItem('playerName');
+
     async function checkPlayerName() {
-      if (playerName) {
-        console.log('Player name already set:', playerName);
-        return;
-      }
+      if (playerName) return;
       if (window.location.protocol === 'file:') {
         playerName = 'LocalPlayer';
         localStorage.setItem('playerName', playerName);
@@ -151,8 +171,7 @@
       }
       try {
         const response = await fetch('/.netlify/functions/get-player-name', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ playerId })
         });
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
@@ -160,10 +179,7 @@
         if (data.name) {
           playerName = data.name;
           localStorage.setItem('playerName', playerName);
-          console.log('Player name retrieved from Firebase:', playerName);
-        } else {
-          showNamePrompt();
-        }
+        } else showNamePrompt();
       } catch (error) {
         console.error('Failed to check player name:', error.message);
         showNamePrompt();
@@ -171,29 +187,24 @@
     }
 
     function showNamePrompt() {
-      const namePrompt = document.getElementById('name-prompt');
-      namePrompt.style.display = 'block';
+      document.getElementById('name-prompt').style.display = 'block';
       document.getElementById('player-name-input').focus();
     }
 
     async function submitPlayerName() {
       const nameInput = document.getElementById('player-name-input').value.trim();
       if (!nameInput || nameInput.length < 3 || nameInput.length > 20) {
-        alert('Please enter a name between 3 and 20 characters.');
+        alert('Name must be 3-20 characters.');
         return;
       }
       playerName = nameInput;
       localStorage.setItem('playerName', playerName);
       document.getElementById('name-prompt').style.display = 'none';
       try {
-        const response = await fetch('/.netlify/functions/set-player-name', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        await fetch('/.netlify/functions/set-player-name', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ playerId, name: playerName })
         });
-        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-        const data = await response.json();
-        console.log('Set player name response:', data);
       } catch (error) {
         console.error('Failed to set player name:', error.message);
       }
@@ -216,15 +227,47 @@
       else badgeDiv.textContent = '';
     }
 
+    function updateLevelDisplay() {
+      const goal = levelGoals[currentLevel - 1];
+      document.getElementById('level-display').textContent = `Level: ${currentLevel} (${saved}/${goal} clicks)`;
+      const progress = (saved / goal) * 100;
+      document.getElementById('progress').style.width = `${Math.min(progress, 100)}%`;
+      if (saved >= goal && currentLevel < levelGoals.length) levelUp();
+    }
+
+    function levelUp() {
+      currentLevel++;
+      localStorage.setItem('currentLevel', currentLevel);
+      xp += [10, 25, 50, 75, 100, 150, 200, 250, 300, 500][currentLevel - 2];
+      localStorage.setItem('xp', xp);
+      let rewardMessage = '';
+      switch (currentLevel - 1) {
+        case 1: rewardMessage = 'Unlocked Paper Shredder animation!'; break;
+        case 2: rewardMessage = 'Unlocked Ocean Cleaner skin! We’ve hit $5T—aim for $10T!'; break;
+        case 3: rewardMessage = 'Unlocked Junkyard Titan skin!'; break;
+        case 4: rewardMessage = 'Unlocked Corporate King animation!'; break;
+        case 5: rewardMessage = 'Unlocked Space Explorer skin!'; break;
+        case 6: rewardMessage = 'Unlocked Wall Street Boss animation!'; break;
+        case 7: rewardMessage = 'Unlocked Fortress Guardian skin!'; break;
+        case 8: rewardMessage = 'Unlocked Mars Conqueror animation!'; break;
+        case 9: rewardMessage = 'Unlocked Galactic Ruler skin!'; break;
+        case 10: rewardMessage = 'Unlocked Debt Destroyer skin + Victory Animation! $36T achieved!'; break;
+      }
+      alert(`Level Up to ${currentLevel}! ${rewardMessage} + ${xp} XP`);
+      updateLevelDisplay();
+      if (currentLevel === 2) messageDiv.textContent = 'We’ve shredded $5T! Aim for $10T!';
+      if (currentLevel === 10) messageDiv.textContent = '$36T shredded—victory is ours!';
+    }
+
     function activatePowerUp() {
-      if (powerUpCooldown) return;
+      if (powerUpCooldown || currentLevel < 2) return;
       powerUpActive = true;
       powerUpButton.disabled = true;
       powerUpSound.play().catch(() => {});
       messageDiv.textContent = 'Double Pork Active! (10s)';
       setTimeout(() => {
         powerUpActive = false;
-        messageDiv.textContent = 'Uncover $36T in waste—then we might launch $PORK to the moon!';
+        messageDiv.textContent = 'Shred $36T in waste—join the epic mission!';
       }, POWER_UP_DURATION);
       powerUpCooldown = true;
       let cooldown = COOLDOWN_DURATION / 1000;
@@ -240,35 +283,33 @@
       }, 1000);
     }
 
+    async function joinTeam() {
+      if (teamId || currentLevel < 5) return; // Restrict to Level 5+
+      teamId = crypto.randomUUID();
+      joinTeamButton.disabled = true;
+      joinTeamButton.textContent = `In Team ${teamId.slice(0, 8)}`;
+      console.log('Joined team:', teamId);
+      // Sync with Firebase (to be implemented in click.js)
+    }
+
     async function updateStats() {
       console.log('Attempting to fetch stats...');
-      if (window.location.protocol === 'file:') {
-        console.log('Running locally - skipping fetch and mocking data');
-        return;
-      }
+      if (window.location.protocol === 'file:') return;
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         const res = await fetch('/.netlify/functions/stats', {
-          method: 'GET',
-          headers: { 'Accept': 'application/json' },
-          signal: controller.signal
+          method: 'GET', headers: { 'Accept': 'application/json' }, signal: controller.signal
         });
         clearTimeout(timeoutId);
         if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
-        const text = await res.text();
-        const data = text ? JSON.parse(text) : { total: 0, players: 0 };
+        const data = await res.json();
         totalSaved = data.total || 0;
         lastPlayerCount = playerCount;
         playerCount = data.players || 0;
         totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
         playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
-        if (playerCount > lastPlayerCount) {
-          playersDiv.classList.add('new-player');
-        }
-        if (totalSaved >= TARGET && playerCount >= 10000) {
-          messageDiv.textContent = '$36T uncovered! Time to launch $PORK—stay tuned!';
-        }
+        if (playerCount > lastPlayerCount) playersDiv.classList.add('new-player');
       } catch (err) {
         console.error('Stats fetch failed:', err.message);
       }
@@ -279,19 +320,13 @@
       const leaderboardLoading = document.getElementById('leaderboard-loading');
       leaderboardLoading.style.display = 'block';
       if (window.location.protocol === 'file:') {
-        console.log('Running locally - skipping leaderboard fetch and mocking data');
         leaderboardLoading.style.display = 'none';
         return;
       }
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
         const response = await fetch('/.netlify/functions/leaderboard', {
-          method: 'GET',
-          headers: { 'Accept': 'application/json' },
-          signal: controller.signal
+          method: 'GET', headers: { 'Accept': 'application/json' }, signal: new AbortController().signal
         });
-        clearTimeout(timeoutId);
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const data = await response.json();
         const leaderboardBody = document.getElementById('leaderboard-body');
@@ -323,21 +358,21 @@
     setInterval(updateGameData, 5000);
 
     powerUpButton.addEventListener('click', activatePowerUp);
+    joinTeamButton.addEventListener('click', joinTeam);
 
     octopork.onclick = async () => {
       const item = wasteItems[Math.floor(Math.random() * wasteItems.length)];
       let amount = item.amount;
       let multiplier = 1;
-      if (powerUpActive && Math.random() < 0.9) {
-        multiplier = 2;
-        amount *= multiplier;
-      }
+      if (powerUpActive && Math.random() < 0.9) multiplier = 2;
+      amount *= multiplier;
       saved += amount;
       localStorage.setItem('porkSaved', saved);
       wasteDiv.textContent = item.text;
       wasteDiv.style.opacity = 1;
       savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
       updateBadge();
+      updateLevelDisplay();
 
       chaChing.play().catch(() => {});
       shredder.play().catch(() => {});
@@ -345,26 +380,19 @@
       explodeWaste();
       dropCoin();
 
-      console.log('Sending click with amount:', amount, 'multiplier:', multiplier, 'playerId:', playerId);
+      console.log('Sending click with amount:', amount, 'multiplier:', multiplier, 'playerId:', playerId, 'level:', currentLevel, 'teamId:', teamId);
       fetch('/.netlify/functions/click', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: item.amount, multiplier, playerId })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: item.amount, multiplier, playerId, level: currentLevel, teamId })
       })
-        .then(res => {
-          console.log('Click fetch response status:', res.status);
-          return res.json();
-        })
-        .then(data => console.log('Click response:', data))
+        .then(res => res.json().then(data => console.log('Click response:', data)))
         .catch(err => console.error('Click report failed:', err.message));
 
       if (window.location.protocol === 'file:') {
         totalSaved += amount;
         playersDiv.textContent = `Players Shredding Waste: ${playerCount.toLocaleString()}`;
         totalDiv.textContent = `Total $PORK Saved: $${totalSaved.toLocaleString()}`;
-      } else {
-        await updateGameData();
-      }
+      } else await updateGameData();
     };
 
     function explodeWaste() {
@@ -372,7 +400,6 @@
       const gameRect = document.getElementById('game').getBoundingClientRect();
       const startX = wasteRect.left - gameRect.left + wasteRect.width / 2;
       const startY = wasteRect.top - gameRect.top + wasteRect.height / 2;
-
       for (let i = 0; i < 20; i++) {
         const confetti = document.createElement('div');
         confetti.className = 'confetti';
@@ -380,24 +407,18 @@
         confetti.style.left = `${startX}px`;
         confetti.style.top = `${startY}px`;
         document.getElementById('game').appendChild(confetti);
-
         const angle = Math.random() * 2 * Math.PI;
         const speed = Math.random() * 5 + 2;
         let vx = Math.cos(angle) * speed;
         let vy = Math.sin(angle) * speed;
-
         const animate = () => {
           const x = parseFloat(confetti.style.left) + vx;
           const y = parseFloat(confetti.style.top) + vy;
           vy += 0.1;
           confetti.style.left = `${x}px`;
           confetti.style.top = `${y}px`;
-
           if (y < 600) requestAnimationFrame(animate);
-          else {
-            confetti.remove();
-            wasteDiv.style.opacity = 0;
-          }
+          else { confetti.remove(); wasteDiv.style.opacity = 0; }
         };
         animate();
       }
