@@ -12,12 +12,6 @@ const firebaseConfig = {
   measurementId: process.env.FIREBASE_MEASUREMENT_ID,
 };
 
-console.log('Firebase Config in leaderboard.js:', firebaseConfig);
-
-if (!firebaseConfig.apiKey || !firebaseConfig.databaseURL || !firebaseConfig.projectId) {
-  throw new Error('Missing required Firebase environment variables in leaderboard.js');
-}
-
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
@@ -32,49 +26,22 @@ exports.handler = async (event, context) => {
 
   try {
     const playerTotalsRef = ref(db, 'playerTotals');
-    const playerTotalsSnapshot = await get(playerTotalsRef);
-    console.log('Player totals snapshot:', playerTotalsSnapshot.val());
+    const snapshot = await get(playerTotalsRef);
+    console.log('Player totals snapshot:', snapshot.val());
 
-    if (!playerTotalsSnapshot.exists()) {
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ leaderboard: [] }),
-      };
+    if (!snapshot.exists()) {
+      return { statusCode: 200, headers, body: JSON.stringify({ leaderboard: [] }) };
     }
 
-    const playerTotals = playerTotalsSnapshot.val();
-    const leaderboardEntries = Object.entries(playerTotals)
-      .map(([playerId, data]) => ({
-        playerId,
-        total: data.total || 0,
-      }))
+    const totals = snapshot.val();
+    const leaderboard = Object.entries(totals)
+      .map(([playerId, data]) => ({ playerId, name: 'Anonymous', total: data.total }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 10);
 
-    const leaderboard = [];
-    for (const entry of leaderboardEntries) {
-      const playerRef = ref(db, `players/${entry.playerId}`);
-      const playerSnapshot = await get(playerRef);
-      const playerData = playerSnapshot.val();
-      leaderboard.push({
-        playerId: entry.playerId,
-        total: entry.total,
-        name: playerData?.name || 'Anonymous',
-      });
-    }
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ leaderboard }),
-    };
+    return { statusCode: 200, headers, body: JSON.stringify({ leaderboard }) };
   } catch (error) {
     console.error('Leaderboard handler error:', error.message, error.stack);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Failed to fetch leaderboard' }),
-    };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
   }
 };
