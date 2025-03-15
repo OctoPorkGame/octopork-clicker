@@ -73,13 +73,16 @@ exports.handler = async (event, context) => {
     });
     console.log('Updated total in stats/global');
 
-    await update(playerTotalsRef, {
-      total: increment(amount),
-      lastUpdated: new Date().toISOString(),
-    }).catch((err) => {
-      throw new Error(`Failed to update /playerTotals/${playerId}: ${err.message}`);
-    });
-    console.log('Updated player total for:', playerId);
+    try {
+      await update(playerTotalsRef, {
+        total: increment(amount),
+        lastUpdated: new Date().toISOString(),
+      });
+      console.log('Updated player total for:', playerId);
+    } catch (error) {
+      console.error('Failed to update /playerTotals:', error.message);
+      throw new Error(`Failed to update /playerTotals: ${error.message}`);
+    }
 
     const playerSnap = await get(ref(db, `players/${playerId}`)).catch((err) => {
       throw new Error(`Failed to read /players/${playerId}: ${err.message}`);
