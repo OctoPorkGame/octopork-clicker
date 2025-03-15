@@ -108,16 +108,16 @@
 
   <script>
     const wasteItems = [
-      { text: "$10M Golden Toilet Throne", amount: 10000000 },
-      { text: "$2M Diamond Stapler Study", amount: 2000000 },
-      { text: "$500K Pork-Filled Briefcase", amount: 500000 },
-      { text: "$1B Kitchen Sink Subsidy", amount: 1000000000 },
-      { text: "$750K Senator Selfie Statues", amount: 750000 },
-      { text: "$25M Pentagon Coffee Fund", amount: 25000000 },
-      { text: "$3.5M Jet Joyride", amount: 3500000 },
-      { text: "$100M Bridge to Nowhere", amount: 100000000 },
-      { text: "$50K Gold Paperclips", amount: 50000 },
-      { text: "$6B Typo Cover-Up", amount: 6000000000 }
+      { text: "$10M Golden Toilet Throne", amount: 1400000000 },     // $1.4B
+      { text: "$2M Diamond Stapler Study", amount: 280000000 },      // $280M
+      { text: "$500K Pork-Filled Briefcase", amount: 700000000 },    // $700M
+      { text: "$1B Kitchen Sink Subsidy", amount: 2800000000 },      // $2.8B
+      { text: "$750K Senator Selfie Statues", amount: 1050000000 },  // $1.05B
+      { text: "$25M Pentagon Coffee Fund", amount: 3500000000 },     // $3.5B
+      { text: "$3.5M Jet Joyride", amount: 4900000000 },            // $4.9B
+      { text: "$100M Bridge to Nowhere", amount: 2800000000 },       // $2.8B
+      { text: "$50K Gold Paperclips", amount: 700000000 },          // $700M
+      { text: "$6B Typo Cover-Up", amount: 8400000000 }             // $8.4B
     ];
 
     let saved = parseInt(localStorage.getItem('porkSaved')) || 0;
@@ -127,8 +127,19 @@
     let currentLevel = parseInt(localStorage.getItem('currentLevel')) || 1;
     let xp = parseInt(localStorage.getItem('xp')) || 0;
     let teamId = null;
-    let clickCount = parseInt(localStorage.getItem('clickCount')) || 0; // Add clickCount variable
-    const levelGoals = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000, 2000000];
+    let clickCount = parseInt(localStorage.getItem('clickCount')) || 0;
+    const levelGoals = [
+      1000000000,      // Level 1: $1B
+      5000000000,      // Level 2: $5B
+      25000000000,     // Level 3: $25B
+      100000000000,    // Level 4: $100B
+      500000000000,    // Level 5: $500B
+      1000000000000,   // Level 6: $1T
+      5000000000000,   // Level 7: $5T
+      10000000000000,  // Level 8: $10T
+      20000000000000,  // Level 9: $20T
+      36000000000000   // Level 10: $36T
+    ];
     const TARGET = 36000000000000;
     let powerUpActive = false;
     let powerUpCooldown = false;
@@ -244,7 +255,7 @@
       let rewardMessage = '';
       switch (currentLevel - 1) {
         case 1: rewardMessage = 'Unlocked Paper Shredder animation!'; break;
-        case 2: rewardMessage = 'Unlocked Ocean Cleaner skin! We’ve hit $5T—aim for $10T!'; break;
+        case 2: rewardMessage = 'Unlocked Ocean Cleaner skin! We’ve hit $5B—aim for $25B!'; break;
         case 3: rewardMessage = 'Unlocked Junkyard Titan skin!'; break;
         case 4: rewardMessage = 'Unlocked Corporate King animation!'; break;
         case 5: rewardMessage = 'Unlocked Space Explorer skin!'; break;
@@ -256,7 +267,7 @@
       }
       alert(`Level Up to ${currentLevel}! ${rewardMessage} + ${xp} XP`);
       updateLevelDisplay();
-      if (currentLevel === 2) messageDiv.textContent = 'We’ve shredded $5T! Aim for $10T!';
+      if (currentLevel === 2) messageDiv.textContent = 'We’ve shredded $5B! Aim for $25B!';
       if (currentLevel === 10) messageDiv.textContent = '$36T shredded—victory is ours!';
     }
 
@@ -327,14 +338,14 @@
         return;
       }
       try {
-        let controller = new AbortController(); // Moved inside try block to ensure proper scope
+        let controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         const response = await fetch('/.netlify/functions/leaderboard', {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
           signal: controller.signal
         });
-        clearTimeout(timeoutId); // Clear timeout after fetch
+        clearTimeout(timeoutId);
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const data = await response.json();
         console.log('Leaderboard data received:', data);
@@ -373,12 +384,12 @@
         const data = await response.json();
         if (data.total !== undefined) {
           saved = data.total;
-          clickCount = data.clickCount || 0; // Fetch clickCount
+          clickCount = data.clickCount || 0;
           localStorage.setItem('porkSaved', saved);
-          localStorage.setItem('clickCount', clickCount); // Store clickCount
+          localStorage.setItem('clickCount', clickCount);
           currentLevel = 1;
           for (let i = 0; i < levelGoals.length; i++) {
-            if (saved >= levelGoals[i]) currentLevel = i + 2;
+            if (saved >= levelGoals[i]) currentLevel = i + 1;
             else break;
           }
           localStorage.setItem('currentLevel', currentLevel);
@@ -413,9 +424,9 @@
       if (powerUpActive && Math.random() < 0.9) multiplier = 2;
       amount *= multiplier;
       saved += amount;
-      clickCount += 1; // Increment clickCount locally
+      clickCount += 1;
       localStorage.setItem('porkSaved', saved);
-      localStorage.setItem('clickCount', clickCount); // Update local storage
+      localStorage.setItem('clickCount', clickCount);
       wasteDiv.textContent = item.text;
       wasteDiv.style.opacity = 1;
       savedDiv.textContent = `$PORK Saved: $${saved.toLocaleString()}`;
