@@ -1,45 +1,63 @@
-const { initializeApp } = require('firebase/app');
-const { getDatabase, ref, push, update, increment, get } = require('firebase/database');
+const admin = require('firebase-admin');
 
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.FIREBASE_DATABASE_URL,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID,
-  measurementId: process.env.FIREBASE_MEASUREMENT_ID,
-};
+// Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)),
+    databaseURL: process.env.FIREBASE_DATABASE_URL,
+  });
+}
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const db = admin.database();
 
 exports.handler = async (event, context) => {
   console.log('Click function triggered with body:', event.body);
+
   const headers = {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': 'https://octoporkgame.netlify.app', // Restrict to your domain
     'Access-Control-Allow-Methods': 'POST',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 
+  // Validate HTTP method
+  if (event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method Not Allowed' }),
+    };
+  }
+
+  // Parse request body
   let body;
   try {
     body = event.body ? JSON.parse(event.body) : {};
     console.log('Received body:', body);
   } catch (parseError) {
     console.error('Failed to parse body:', parseError.message);
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Invalid JSON body' }),
+    };
   }
 
   try {
     const { amount, multiplier = 1, playerId, level, teamId } = body;
+
+    // Validate inputs
     if (!amount || amount <= 0) throw new Error('Amount is required and must be positive');
     if (!playerId || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(playerId)) {
       throw new Error('Valid playerId (UUID) is required');
     }
 
+    // Validate level (assuming 1-10 based on your game logic)
+    if (level < 1 || level > 10 || !Number.isInteger(level)) {
+      throw new Error('Invalid level: must be an integer between 1 and 10');
+    }
+
+    // Calculate effective amount with server-side multipliers
     let effectiveAmount = amount * multiplier;
     let clickMultiplier = 1;
     if (level >= 3) clickMultiplier = 2;
@@ -47,48 +65,68 @@ exports.handler = async (event, context) => {
     if (level >= 10 && teamId) clickMultiplier = 4;
     effectiveAmount *= clickMultiplier;
 
-    const clicksRef = ref(db, 'clicks');
-    const statsRef = ref(db, 'stats/global');
-    const playersRef = ref(db, `players/${playerId}`);
-    const playerTotalsRef = ref(db, `playerTotals/${playerId}`);
+    const clicksRef = db.ref('clicks');
+    const statsRef = db.ref('stats/global');
+    const playersRef = db.ref(`players/${playerId}`);
+    const playerTotalsRef = db.ref(`playerTotals/${playerId}`);
 
-    const clickResult = await push(clicksRef, {
-      amount, multiplier, effectiveAmount, playerId, level, teamId, timestamp: new Date().toISOString(),
+    const clickResult = await clicksRef.push({
+      amount,
+      multiplier,
+      effectiveAmount,
+      playerId,
+      level,
+      teamId,
+      timestamp: new Date().toISOString(),
     });
     console.log('Click recorded with ID:', clickResult.key);
 
-    await update(statsRef, { total: increment(effectiveAmount), lastUpdated: new Date().toISOString() });
-    await update(playerTotalsRef, {
-      total: increment(effectiveAmount),
-      clickCount: increment(1), // Track individual clicks
+    await statsRef.update({
+      total: admin.database.ServerValue.increment(effectiveAmount),
       lastUpdated: new Date().toISOString(),
     });
-    await update(playersRef, { lastSeen: new Date().toISOString() });
+    await playerTotalsRef.update({
+      total: admin.database.ServerValue.increment(effectiveAmount),
+      clickCount: admin.database.ServerValue.increment(1),
+      lastUpdated: new Date().toISOString(),
+    });
+    await playersRef.update({ lastSeen: new Date().toISOString() });
 
-    // Check if this is a new player and ensure their total exists
-    const playerTotalSnap = await get(playerTotalsRef);
+    // Initialize player totals if they don't exist
+    const playerTotalSnap = await playerTotalsRef.once('value');
     if (!playerTotalSnap.exists()) {
-      await update(playerTotalsRef, {
+      await playerTotalsRef.set({
         total: effectiveAmount,
-        clickCount: 1, // Initialize click count
+        clickCount: 1,
         lastUpdated: new Date().toISOString(),
       });
     }
 
-    // Update player count based on unique players in playerTotals
-    const playerTotalsSnap = await get(ref(db, 'playerTotals'));
+    // Update player count
+    const playerTotalsSnap = await db.ref('playerTotals').once('value');
     const uniquePlayers = playerTotalsSnap.exists() ? Object.keys(playerTotalsSnap.val()).length : 0;
-    await update(statsRef, { players: uniquePlayers });
+    await statsRef.update({ players: uniquePlayers });
     console.log('Updated player count to:', uniquePlayers);
 
+    // Update team total if applicable
     if (teamId) {
-      const teamRef = ref(db, `teams/${teamId}/total`);
-      await update(teamRef, { total: increment(effectiveAmount) });
+      const teamRef = db.ref(`teams/${teamId}/total`);
+      await teamRef.update({
+        total: admin.database.ServerValue.increment(effectiveAmount),
+      });
     }
 
-    return { statusCode: 200, headers, body: JSON.stringify({ success: true, clickId: clickResult.key }) };
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ success: true, clickId: clickResult.key }),
+    };
   } catch (error) {
     console.error('Click handler error:', error.message, error.stack);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: error.message }),
+    };
   }
 };
