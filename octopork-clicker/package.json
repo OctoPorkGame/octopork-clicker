@@ -1,14 +1,10 @@
-{
-  "name": "octopork-clicker",
+ "name": "octopork-clicker",
   "version": "1.0.0",
-  "description": "OctoPork Clicker game",
-  "main": "index.html",
-  "scripts": {
-    "start": "echo 'Deployed via Netlify'"
-  },
+  "description": "OctoPork Clicker Game",
   "dependencies": {
-    "firebase": "^10.12.2"
+    "firebase": "^10.13.2"
   },
-  "author": "Ekon Musl",
-  "license": "MIT"
+  "scripts": {
+    "start": "echo 'No start script needed for Netlify'"
+  }
 }
