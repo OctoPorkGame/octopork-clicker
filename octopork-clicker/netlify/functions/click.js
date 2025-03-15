@@ -42,45 +42,40 @@ exports.handler = async (event, context) => {
 
     let effectiveAmount = amount * multiplier;
     let clickMultiplier = 1;
-    if (level >= 3) clickMultiplier = 2; // Upgrade from Level 3
-    if (level >= 4) clickMultiplier = 3; // Neon Shredder
-    if (level >= 10 && teamId) clickMultiplier = 4; // Leader boost (simplified)
+    if (level >= 3) clickMultiplier = 2;
+    if (level >= 4) clickMultiplier = 3;
+    if (level >= 10 && teamId) clickMultiplier = 4;
     effectiveAmount *= clickMultiplier;
 
     const clicksRef = ref(db, 'clicks');
     const statsRef = ref(db, 'stats/global');
-    const playersRef = ref(db, 'players');
-    const playerRef = ref(db, `players/${playerId}`);
+    const playersRef = ref(db, `players/${playerId}`);
     const playerTotalsRef = ref(db, `playerTotals/${playerId}`);
 
     const clickResult = await push(clicksRef, {
       amount, multiplier, effectiveAmount, playerId, level, teamId, timestamp: new Date().toISOString(),
-    }).catch(err => { throw new Error(`Failed to write to /clicks: ${err.message}`); });
+    });
     console.log('Click recorded with ID:', clickResult.key);
 
-    await update(statsRef, { total: increment(effectiveAmount), lastUpdated: new Date().toISOString() })
-      .catch(err => { throw new Error(`Failed to update /stats/global/total: ${err.message}`); });
-    console.log('Updated total in stats/global');
+    await update(statsRef, { total: increment(effectiveAmount), lastUpdated: new Date().toISOString() });
+    await update(playerTotalsRef, { total: increment(effectiveAmount), lastUpdated: new Date().toISOString() });
+    await update(playersRef, { lastSeen: new Date().toISOString() });
 
-    await update(playerTotalsRef, { total: increment(effectiveAmount), lastUpdated: new Date().toISOString() })
-      .catch(err => { throw new Error(`Failed to update /playerTotals: ${err.message}`); });
-    console.log('Updated player total for:', playerId);
-
-    const playerSnap = await get(playerRef).catch(err => { throw new Error(`Failed to read /players/${playerId}: ${err.message}`); });
-    if (!playerSnap.exists()) {
-      await update(playerRef, { lastSeen: new Date().toISOString(), joined: new Date().toISOString() });
-      const statsSnap = await get(statsRef);
-      let currentPlayers = statsSnap.exists() ? statsSnap.val().players || 0 : 0;
-      await update(statsRef, { players: currentPlayers + 1 });
-      console.log('New player added:', playerId, 'Total players now:', currentPlayers + 1);
-    } else {
-      await update(playerRef, { lastSeen: new Date().toISOString() });
+    // Check if this is a new player and ensure their total exists
+    const playerTotalSnap = await get(playerTotalsRef);
+    if (!playerTotalSnap.exists()) {
+      await update(playerTotalsRef, { total: effectiveAmount, lastUpdated: new Date().toISOString() });
     }
+
+    // Update player count based on unique players in playerTotals
+    const playerTotalsSnap = await get(ref(db, 'playerTotals'));
+    const uniquePlayers = playerTotalsSnap.exists() ? Object.keys(playerTotalsSnap.val()).length : 0;
+    await update(statsRef, { players: uniquePlayers });
+    console.log('Updated player count to:', uniquePlayers);
 
     if (teamId) {
       const teamRef = ref(db, `teams/${teamId}/total`);
       await update(teamRef, { total: increment(effectiveAmount) });
-      console.log('Updated team total for:', teamId);
     }
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, clickId: clickResult.key }) };
